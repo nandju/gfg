@@ -10,48 +10,75 @@ export interface Game {
 
 export const games: Game[] = [
   {
-    id: "zelda",
-    title: "La Légende de Zelda",
-    description: "Explorez un vaste monde ouvert et sauvez le royaume d'Hyrule dans cette aventure épique en équipe.",
-    coverImage: "https://images.unsplash.com/photo-1566577739112-5180d4bf9390?w=400&h=600&fit=crop",
-    backgroundMobile: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&h=1200&fit=crop",
-    backgroundDesktop: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1920&h=1080&fit=crop",
-    link: "/games/zelda"
+    id: "threedays",
+    title: "THREE DAYS",
+    description: "Echappez à la règle des 3 jours après la réalisation de votre souhait",
+    coverImage: "/threedays/cover.jpeg",
+    backgroundMobile: "/threedays/mobile7.png",
+    backgroundDesktop: "/threedays/desktop.png",
+    link: "/games/threedays"
   },
   {
-    id: "mario",
-    title: "Super Mario Aventure",
-    description: "Parcourez des mondes colorés et collectez des étoiles avec vos coéquipiers dans cette aventure multijoueur.",
-    coverImage: "https://images.unsplash.com/photo-1612287230202-1ff1d85d1bdf?w=400&h=600&fit=crop",
-    backgroundMobile: "https://images.unsplash.com/photo-1579373903781-fd5c0c30c4cd?w=800&h=1200&fit=crop",
-    backgroundDesktop: "https://images.unsplash.com/photo-1579373903781-fd5c0c30c4cd?w=1920&h=1080&fit=crop",
-    link: "/games/mario"
+    id: "moonsters",
+    title: "Moonsters",
+    description: "Devenez un moonster ou un chasseur et defendez votre camp à bout de ruse et de stratégie pour remporter la victoire",
+    coverImage: "/moonsters/cover.jpeg",
+    backgroundMobile: "/moonsters/mobile1.png",
+    backgroundDesktop: "/moonsters/desktop.png",
+    link: "/games/moonsters"
   },
   {
-    id: "animal",
-    title: "Île Paradisiaque",
-    description: "Construisez et gérez votre île de rêve avec vos amis dans ce jeu de simulation relaxant.",
-    coverImage: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&h=600&fit=crop",
-    backgroundMobile: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=1200&fit=crop",
-    backgroundDesktop: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&h=1080&fit=crop",
-    link: "/games/animal"
+    id: "cagewild",
+    title: "Cage Wild",
+    description: "Utilisez votre partenaire pour survivre dans cet univers impitoyable où la coopération est la clé de la survie. Un jeu d'action et de stratégie intense pour les duos audacieux.",
+    coverImage: "/cagewild/cover.jpeg",
+    backgroundMobile: "/cagewild/mobile4.png",
+    backgroundDesktop: "/cagewild/desktop.png",
+    link: "/games/cagewild"
   },
   {
-    id: "hades",
-    title: "Royaume des Ombres",
-    description: "Échappez-vous des enfers dans ce jeu d'action coopératif intense et stratégique.",
-    coverImage: "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=400&h=600&fit=crop",
-    backgroundMobile: "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=800&h=1200&fit=crop",
-    backgroundDesktop: "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=1920&h=1080&fit=crop",
-    link: "/games/hades"
+    id: "deadlypsycho",
+    title: "Deadly Psycho",
+    description: "Nagez dans le monde impitoyable des assassins où seul un esprit totalement fou peut survivre",
+    coverImage: "/deadlypsycho/cover.jpeg",
+    backgroundMobile: "/deadlypsycho/mobile5.png",
+    backgroundDesktop: "/deadlypsycho/desktop.png",
+    link: "/games/deadlypsycho"
   },
   {
-    id: "minecraft",
-    title: "Monde de Blocs",
-    description: "Construisez, explorez et survivez ensemble dans un monde infini de possibilités.",
-    coverImage: "https://images.unsplash.com/photo-1587573089734-599d584002d0?w=400&h=600&fit=crop",
-    backgroundMobile: "https://images.unsplash.com/photo-1518173946687-a4c036056a06?w=800&h=1200&fit=crop",
-    backgroundDesktop: "https://images.unsplash.com/photo-1518173946687-a4c036056a06?w=1920&h=1080&fit=crop",
-    link: "/games/minecraft"
+    id: "goal",
+    title: "GOAL !!!",
+    description: "Formez votre équipe et battez vos adversaires, seul les plus aguéris pourront soulever le trophée de la victoire",
+    coverImage: "/goal!!!/cover.jpeg",
+    backgroundMobile: "/goal!!!/mobile3.png",
+    backgroundDesktop: "/goal!!!/desktop.png",
+    link: "/games/goal"
+  },
+  {
+    id: "jobwars",
+    title: "Job Wars",
+    description: "Avec le metier de votre choix, affrontez les autres joueurs dans des batailles épiques pour prouver que votre profession est la meilleure",
+    coverImage: "/jobwars/cover.jpeg",
+    backgroundMobile: "/jobwars/mobile2.png",
+    backgroundDesktop: "/jobwars/desktop.png",
+    link: "/games/jobwars"
+  },
+  {
+    id: "adassa",
+    title: "ADASSA",
+    description: "Découvrez le mystère d'ADASSA, un jeu qui défie les attentes et révèle une expérience de jeu unique que personne n'aurait pu anticiper. Plongez dans un univers où les apparences sont trompeuses et où chaque décision compte.",
+    coverImage: "/adassa/cover.jpeg",
+    backgroundMobile: "/adassa/mobile6.png",
+    backgroundDesktop: "/adassa/desktop.png",
+    link: "/games/adassa"
+  },
+  {
+    id: "bus",
+    title: "BUS, le survivant de l'accident",
+    description: "Une fois que vous prenez ce bus, il n'y a pas de retour en arrière. Plongez dans une aventure palpitante où chaque arrêt vous rapproche soit de la sécurité, soit du danger. Serez-vous capable de survivre à ce voyage imprévisible ?",
+    coverImage: "/bus/cover.jpeg",
+    backgroundMobile: "/bus/mobile8.png",
+    backgroundDesktop: "/bus/desktop.png",
+    link: "/games/bus"
   }
 ]
