@@ -13,7 +13,7 @@ export const games: Game[] = [
     id: "threedays",
     title: "THREE DAYS",
     description: "Echappez à la règle des 3 jours après la réalisation de votre souhait",
-    coverImage: "/threedays/cover.jpeg",
+    coverImage: "/threedays/cover.png",
     backgroundMobile: "/threedays/mobile7.png",
     backgroundDesktop: "/threedays/desktop.png",
     link: "/games/threedays"
@@ -31,7 +31,7 @@ export const games: Game[] = [
     id: "cagewild",
     title: "Cage Wild",
     description: "Utilisez votre partenaire pour survivre dans cet univers impitoyable où la coopération est la clé de la survie. Un jeu d'action et de stratégie intense pour les duos audacieux.",
-    coverImage: "/cagewild/cover.jpeg",
+    coverImage: "/cagewild/cover.png",
     backgroundMobile: "/cagewild/mobile4.png",
     backgroundDesktop: "/cagewild/desktop.png",
     link: "/games/cagewild"
@@ -40,7 +40,7 @@ export const games: Game[] = [
     id: "deadlypsycho",
     title: "Deadly Psycho",
     description: "Nagez dans le monde impitoyable des assassins où seul un esprit totalement fou peut survivre",
-    coverImage: "/deadlypsycho/cover.jpeg",
+    coverImage: "/deadlypsycho/cover.png",
     backgroundMobile: "/deadlypsycho/mobile5.png",
     backgroundDesktop: "/deadlypsycho/desktop.png",
     link: "/games/deadlypsycho"
@@ -49,7 +49,7 @@ export const games: Game[] = [
     id: "goal",
     title: "GOAL !!!",
     description: "Formez votre équipe et battez vos adversaires, seul les plus aguéris pourront soulever le trophée de la victoire",
-    coverImage: "/goal!!!/cover.jpeg",
+    coverImage: "/goal!!!/cover.png",
     backgroundMobile: "/goal!!!/mobile3.png",
     backgroundDesktop: "/goal!!!/desktop.png",
     link: "/games/goal"
@@ -58,7 +58,7 @@ export const games: Game[] = [
     id: "jobwars",
     title: "Job Wars",
     description: "Avec le metier de votre choix, affrontez les autres joueurs dans des batailles épiques pour prouver que votre profession est la meilleure",
-    coverImage: "/jobwars/cover.jpeg",
+    coverImage: "/jobwars/cover.png",
     backgroundMobile: "/jobwars/mobile2.png",
     backgroundDesktop: "/jobwars/desktop.png",
     link: "/games/jobwars"
@@ -67,7 +67,7 @@ export const games: Game[] = [
     id: "adassa",
     title: "ADASSA",
     description: "Découvrez le mystère d'ADASSA, un jeu qui défie les attentes et révèle une expérience de jeu unique que personne n'aurait pu anticiper. Plongez dans un univers où les apparences sont trompeuses et où chaque décision compte.",
-    coverImage: "/adassa/cover.jpeg",
+    coverImage: "/adassa/cover.png",
     backgroundMobile: "/adassa/mobile6.png",
     backgroundDesktop: "/adassa/desktop.png",
     link: "/games/adassa"
@@ -76,7 +76,7 @@ export const games: Game[] = [
     id: "bus",
     title: "BUS, le survivant de l'accident",
     description: "Une fois que vous prenez ce bus, il n'y a pas de retour en arrière. Plongez dans une aventure palpitante où chaque arrêt vous rapproche soit de la sécurité, soit du danger. Serez-vous capable de survivre à ce voyage imprévisible ?",
-    coverImage: "/bus/cover.jpeg",
+    coverImage: "/bus/cover.png",
     backgroundMobile: "/bus/mobile8.png",
     backgroundDesktop: "/bus/desktop.png",
     link: "/games/bus"
