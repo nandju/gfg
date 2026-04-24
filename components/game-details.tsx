@@ -79,10 +79,15 @@ export function GameDetails({ game, onClose }: GameDetailsProps) {
 
           {/* Play button */}
           <Link
-            href={game.link}
-            className="inline-flex items-center gap-3 bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-4 rounded-full font-semibold text-lg transition-all duration-200 hover:scale-105 shadow-lg shadow-primary/40"
+            href={game.available ? game.link : "#"}
+            onClick={game.available ? undefined : (e) => e.preventDefault()}
+            className={`inline-flex items-center gap-3 px-8 py-4 rounded-full font-semibold text-lg transition-all duration-200 ${
+              game.available
+                ? "bg-primary hover:bg-primary/90 text-primary-foreground hover:scale-105 shadow-lg shadow-primary/40 cursor-pointer"
+                : "bg-muted text-muted-foreground opacity-60 cursor-not-allowed"
+            }`}
           >
-            <div className="relative w-8 h-8 rounded-full overflow-hidden border-2 border-primary-foreground/30">
+            <div className="relative w-8 h-8 rounded-full overflow-hidden border-2 border-current">
               <Image
                 src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo-1D4w14VdJaweQDPMBlcaNX8jygy0Yp.jpg"
                 alt="Logo"
@@ -90,7 +95,7 @@ export function GameDetails({ game, onClose }: GameDetailsProps) {
                 className="object-cover"
               />
             </div>
-            <span>Jouer</span>
+            <span>{game.available ? "Jouer" : "Indisponible"}</span>
             <Play className="w-5 h-5 fill-current" />
           </Link>
         </div>

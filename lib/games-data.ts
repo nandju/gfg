@@ -6,6 +6,7 @@ export interface Game {
   backgroundMobile: string
   backgroundDesktop: string
   link: string
+  available: boolean
 }
 
 export const games: Game[] = [
@@ -16,7 +17,8 @@ export const games: Game[] = [
     coverImage: "/threedays/cover.png",
     backgroundMobile: "/threedays/mobile7.png",
     backgroundDesktop: "/threedays/desktop.png",
-    link: "/games/threedays"
+    link: "/games/threedays",
+    available: true
   },
   {
     id: "moonsters",
@@ -25,7 +27,8 @@ export const games: Game[] = [
     coverImage: "/moonsters/cover.jpeg",
     backgroundMobile: "/moonsters/mobile1.png",
     backgroundDesktop: "/moonsters/desktop.png",
-    link: "/games/moonsters"
+    link: "/games/moonsters",
+    available: true
   },
   {
     id: "cagewild",
@@ -34,7 +37,8 @@ export const games: Game[] = [
     coverImage: "/cagewild/cover.png",
     backgroundMobile: "/cagewild/mobile4.png",
     backgroundDesktop: "/cagewild/desktop.png",
-    link: "/games/cagewild"
+    link: "/games/cagewild",
+    available: false
   },
   {
     id: "deadlypsycho",
@@ -43,7 +47,8 @@ export const games: Game[] = [
     coverImage: "/deadlypsycho/cover.png",
     backgroundMobile: "/deadlypsycho/mobile5.png",
     backgroundDesktop: "/deadlypsycho/desktop.png",
-    link: "/games/deadlypsycho"
+    link: "/games/deadlypsycho",
+    available: true
   },
   {
     id: "goal",
@@ -52,7 +57,8 @@ export const games: Game[] = [
     coverImage: "/goal!!!/cover.png",
     backgroundMobile: "/goal!!!/mobile3.png",
     backgroundDesktop: "/goal!!!/desktop.png",
-    link: "/games/goal"
+    link: "/games/goal",
+    available: false
   },
   {
     id: "jobwars",
@@ -61,7 +67,8 @@ export const games: Game[] = [
     coverImage: "/jobwars/cover.png",
     backgroundMobile: "/jobwars/mobile2.png",
     backgroundDesktop: "/jobwars/desktop.png",
-    link: "/games/jobwars"
+    link: "/games/jobwars",
+    available: true
   },
   {
     id: "adassa",
@@ -70,7 +77,8 @@ export const games: Game[] = [
     coverImage: "/adassa/cover.png",
     backgroundMobile: "/adassa/mobile6.png",
     backgroundDesktop: "/adassa/desktop.png",
-    link: "/games/adassa"
+    link: "/games/adassa",
+    available: false
   },
   {
     id: "bus",
@@ -79,6 +87,7 @@ export const games: Game[] = [
     coverImage: "/bus/cover.png",
     backgroundMobile: "/bus/mobile8.png",
     backgroundDesktop: "/bus/desktop.png",
-    link: "/games/bus"
+    link: "/games/bus",
+    available: true
   }
 ]

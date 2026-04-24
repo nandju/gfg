@@ -143,9 +143,23 @@ export function GameCatalog() {
             </div>
 
             {/* Play indicator */}
-            <div className="flex items-center gap-2 bg-primary/20 px-4 py-2 rounded-full">
-              <div className="w-3 h-3 bg-primary rounded-full animate-pulse" />
-              <span className="text-sm font-medium text-primary">Jouer</span>
+            <div className={`flex items-center gap-2 px-4 py-2 rounded-full ${
+              selectedGame.available
+                ? "bg-primary/20"
+                : "bg-muted/50"
+            }`}>
+              <div className={`w-3 h-3 rounded-full ${
+                selectedGame.available
+                  ? "bg-primary animate-pulse"
+                  : "bg-muted-foreground"
+              }`} />
+              <span className={`text-sm font-medium ${
+                selectedGame.available
+                  ? "text-primary"
+                  : "text-muted-foreground"
+              }`}>
+                {selectedGame.available ? "Disponible" : "Indisponible"}
+              </span>
             </div>
           </div>
         </div>

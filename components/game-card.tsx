@@ -39,8 +39,12 @@ export function GameCard({ game, isSelected, onSelect }: GameCardProps) {
 
       {/* Selected indicator */}
       {isSelected && (
-        <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-xs px-2 py-1 rounded-full font-medium animate-in fade-in zoom-in duration-200">
-          En cours
+        <div className={`absolute top-2 left-2 text-xs px-2 py-1 rounded-full font-medium animate-in fade-in zoom-in duration-200 ${
+          game.available
+            ? "bg-primary text-primary-foreground"
+            : "bg-muted text-muted-foreground"
+        }`}>
+          {game.available ? "Disponible" : "Indisponible"}
         </div>
       )}
     </button>
