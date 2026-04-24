@@ -57,7 +57,8 @@ export function GameDetails({ game, onClose }: GameDetailsProps) {
           <div className="flex items-center gap-4 mb-4">
             <div className="relative w-16 h-16 md:w-20 md:h-20 rounded-2xl overflow-hidden border-2 border-primary shadow-lg">
               <Image
-                src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo-1D4w14VdJaweQDPMBlcaNX8jygy0Yp.jpg"
+                src={game.coverImage}
+                // src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo-1D4w14VdJaweQDPMBlcaNX8jygy0Yp.jpg"
                 alt="Logo"
                 fill
                 className="object-cover"
