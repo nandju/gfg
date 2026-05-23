@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect } from "react"
 import Image from "next/image"
 
 const loadingTips = [
@@ -19,11 +19,12 @@ interface Particle {
 }
 
 interface LoadingScreenProps {
-  onLoadingComplete: () => void
+  progress: number
+  isExiting: boolean
+  onExited?: () => void
 }
 
-export function LoadingScreen({ onLoadingComplete }: LoadingScreenProps) {
-  const [progress, setProgress] = useState(0)
+export function LoadingScreen({ progress, isExiting, onExited }: LoadingScreenProps) {
   const [currentTip, setCurrentTip] = useState(0)
   const [fadeIn, setFadeIn] = useState(true)
   const [particles, setParticles] = useState<Particle[]>([])
@@ -40,21 +41,6 @@ export function LoadingScreen({ onLoadingComplete }: LoadingScreenProps) {
   }, [])
 
   useEffect(() => {
-    const progressInterval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(progressInterval)
-          setTimeout(() => onLoadingComplete(), 500)
-          return 100
-        }
-        return prev + Math.random() * 3 + 1
-      })
-    }, 80)
-
-    return () => clearInterval(progressInterval)
-  }, [onLoadingComplete])
-
-  useEffect(() => {
     const tipInterval = setInterval(() => {
       setFadeIn(false)
       setTimeout(() => {
@@ -67,7 +53,14 @@ export function LoadingScreen({ onLoadingComplete }: LoadingScreenProps) {
   }, [])
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background overflow-hidden">
+    <div
+      onTransitionEnd={(event) => {
+        if (event.currentTarget === event.target && isExiting) onExited?.()
+      }}
+      className={`fixed inset-0 z-50 flex flex-col items-center justify-center bg-background overflow-hidden transition-all duration-700 ease-out ${
+        isExiting ? "opacity-0 scale-105 pointer-events-none" : "opacity-100 scale-100"
+      }`}
+    >
       {/* Animated background particles */}
       <div className="absolute inset-0 overflow-hidden">
         {particles.map((particle, i) => (
@@ -126,7 +119,7 @@ export function LoadingScreen({ onLoadingComplete }: LoadingScreenProps) {
           <div className="h-2 bg-secondary rounded-full overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-primary to-accent rounded-full transition-all duration-200 ease-out"
-              style={{ width: `${Math.min(progress, 100)}%` }}
+              style={{ width: `${Math.min(Math.round(progress), 100)}%` }}
             />
           </div>
           <p className="text-center text-sm text-muted-foreground mt-2">

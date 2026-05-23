@@ -7,9 +7,10 @@ interface GameCardProps {
   game: Game
   isSelected: boolean
   onSelect: () => void
+  onImageReady?: (src: string) => void
 }
 
-export function GameCard({ game, isSelected, onSelect }: GameCardProps) {
+export function GameCard({ game, isSelected, onSelect, onImageReady }: GameCardProps) {
   return (
     <button
       onClick={onSelect}
@@ -25,6 +26,7 @@ export function GameCard({ game, isSelected, onSelect }: GameCardProps) {
         fill
         className="object-cover"
         sizes="(max-width: 768px) 128px, (max-width: 1024px) 160px, 192px"
+        onLoad={() => onImageReady?.(game.coverImage)}
       />
       
       {/* Overlay gradient */}

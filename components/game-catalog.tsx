@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Image from "next/image"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { games, type Game } from "@/lib/games-data"
@@ -8,11 +8,40 @@ import { GameCard } from "./game-card"
 import { GameDetails } from "./game-details"
 import { Navbar } from "./navbar"
 
-export function GameCatalog() {
+interface GameCatalogProps {
+  onReady?: () => void
+  onProgress?: (progress: number) => void
+}
+
+export function GameCatalog({ onReady, onProgress }: GameCatalogProps) {
   const [selectedGame, setSelectedGame] = useState<Game>(games[0])
   const [showDetails, setShowDetails] = useState(false)
   const [isMusicPlaying, setIsMusicPlaying] = useState(false)
+  const [readyAssets, setReadyAssets] = useState<Set<string>>(new Set())
+  const [componentsReady, setComponentsReady] = useState(false)
+  const [fontsReady, setFontsReady] = useState(false)
+  const [animationsReady, setAnimationsReady] = useState(false)
+  const hasReportedReady = useRef(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const requiredAssets = useMemo(() => {
+    const assets = new Set<string>()
+    games.forEach((game) => {
+      assets.add(game.coverImage)
+    })
+    assets.add(games[0].backgroundMobile)
+    assets.add(games[0].backgroundDesktop)
+    return assets
+  }, [])
+
+  const markAssetReady = useCallback((src: string) => {
+    setReadyAssets((current) => {
+      if (current.has(src)) return current
+
+      const next = new Set(current)
+      next.add(src)
+      return next
+    })
+  }, [])
 
   const handleSelectGame = (game: Game) => {
     setSelectedGame(game)
@@ -56,6 +85,53 @@ export function GameCatalog() {
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [selectedGame, showDetails])
 
+  useEffect(() => {
+    setComponentsReady(true)
+  }, [])
+
+  useEffect(() => {
+    let isMounted = true
+
+    if ("fonts" in document) {
+      document.fonts.ready.then(() => {
+        if (isMounted) setFontsReady(true)
+      })
+    } else {
+      setFontsReady(true)
+    }
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      requestAnimationFrame(() => setAnimationsReady(true))
+    })
+
+    return () => cancelAnimationFrame(frame)
+  }, [])
+
+  useEffect(() => {
+    const assetsReady = Array.from(requiredAssets).every((asset) => readyAssets.has(asset))
+
+    const assetProgress = requiredAssets.size > 0 ? readyAssets.size / requiredAssets.size : 1
+    const progress = Math.round(
+      assetProgress * 70 +
+      (componentsReady ? 10 : 0) +
+      (fontsReady ? 10 : 0) +
+      (animationsReady ? 10 : 0)
+    )
+
+    onProgress?.(Math.min(progress, 100))
+
+    if (assetsReady && componentsReady && fontsReady && animationsReady && !hasReportedReady.current) {
+      hasReportedReady.current = true
+      onReady?.()
+    }
+  }, [animationsReady, componentsReady, fontsReady, onProgress, onReady, readyAssets, requiredAssets])
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-background">
       {/* Background image of selected game */}
@@ -66,6 +142,7 @@ export function GameCatalog() {
           fill
           className="object-cover md:hidden"
           priority
+          onLoad={() => markAssetReady(selectedGame.backgroundMobile)}
         />
         <Image
           src={selectedGame.backgroundDesktop}
@@ -73,6 +150,7 @@ export function GameCatalog() {
           fill
           className="object-cover hidden md:block"
           priority
+          onLoad={() => markAssetReady(selectedGame.backgroundDesktop)}
         />
         {/* Gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/40" />
@@ -114,6 +192,7 @@ export function GameCatalog() {
                 game={game}
                 isSelected={game.id === selectedGame.id}
                 onSelect={() => handleSelectGame(game)}
+                onImageReady={markAssetReady}
               />
             ))}
           </div>

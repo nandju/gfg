@@ -28,7 +28,7 @@ export const games: Game[] = [
     backgroundMobile: "/moonsters/mobile1.png",
     backgroundDesktop: "/moonsters/desktop.png",
     link: "/games/moonsters",
-    available: true
+    available: false
   },
   {
     id: "cagewild",
@@ -38,7 +38,7 @@ export const games: Game[] = [
     backgroundMobile: "/cagewild/mobile4.png",
     backgroundDesktop: "/cagewild/desktop.png",
     link: "/games/cagewild",
-    available: false
+    available: true
   },
   {
     id: "deadlypsycho",
@@ -48,17 +48,17 @@ export const games: Game[] = [
     backgroundMobile: "/deadlypsycho/mobile5.png",
     backgroundDesktop: "/deadlypsycho/desktop.png",
     link: "/games/deadlypsycho",
-    available: true
+    available: false
   },
   {
     id: "goal",
-    title: "GOAL !!!",
+    title: "GOAL!!!",
     description: "Formez votre équipe et battez vos adversaires, seul les plus aguéris pourront soulever le trophée de la victoire",
     coverImage: "/goal!!!/cover.png",
     backgroundMobile: "/goal!!!/mobile3.png",
     backgroundDesktop: "/goal!!!/desktop.png",
     link: "/games/goal",
-    available: false
+    available: true
   },
   {
     id: "jobwars",
@@ -68,7 +68,7 @@ export const games: Game[] = [
     backgroundMobile: "/jobwars/mobile2.png",
     backgroundDesktop: "/jobwars/desktop.png",
     link: "/games/jobwars",
-    available: true
+    available: false
   },
   {
     id: "adassa",
@@ -88,6 +88,6 @@ export const games: Game[] = [
     backgroundMobile: "/bus/mobile8.png",
     backgroundDesktop: "/bus/desktop.png",
     link: "/games/bus",
-    available: true
+    available: false
   }
 ]
