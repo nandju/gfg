@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { ArrowLeft, BadgeCheck, BarChart3, Bot, Check, CircleHelp, Dumbbell, History, KeyRound, Lock, LogIn, Medal, Play, Plus, RefreshCw, ScanLine, Shield, Timer, Trophy, Users, Volleyball } from "lucide-react"
-import { z } from "zod"
 
 type Screen = "loader" | "menu" | "lobby" | "create" | "join" | "teams" | "games" | "quiz-select" | "quiz-loading" | "quiz-question" | "quiz-reveal" | "quiz-ranking" | "mime" | "keyword" | "rotation" | "team-score" | "history" | "results" | "victory" | "simulation"
 type QuizCategory = "Teams" | "Players" | "International Competitions"
@@ -26,16 +25,6 @@ type Team = {
   players: string[]
   score: number
 }
-
-const quizQuestionSchema = z.object({
-  question: z.string(),
-  choices: z.array(z.string()).length(4),
-  answer: z.string(),
-  category: z.enum(["Teams", "Players", "International Competitions"]),
-  difficulty: z.enum(["easy", "medium", "hard"])
-})
-
-const quizPackSchema = z.object({ questions: z.array(quizQuestionSchema).min(5) })
 
 const fallbackQuestions: QuizQuestion[] = [
   { question: "Which country won the 2022 FIFA World Cup?", choices: ["France", "Argentina", "Brazil", "Germany"], answer: "Argentina", category: "International Competitions", difficulty: "easy" },
@@ -71,10 +60,22 @@ function generateCode() {
   return `GL-${letters[Math.floor(Math.random() * letters.length)]}${Math.floor(100 + Math.random() * 900)}`
 }
 
-async function generateQuizPack(category: QuizCategory): Promise<QuizQuestion[]> {
-  await new Promise((resolve) => window.setTimeout(resolve, 900))
-  const pack = quizPackSchema.parse({ questions: fallbackQuestions.filter((question) => question.category === category || category === "International Competitions").slice(0, 5) })
-  return pack.questions
+async function requestQuizPack(category: QuizCategory, difficulty: Difficulty): Promise<{ questions: QuizQuestion[]; source: "ai" | "fallback" }> {
+  const response = await fetch("/api/goal-quiz", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ category, difficulty, count: 5 })
+  })
+
+  if (!response.ok) throw new Error("Quiz generation failed")
+
+  const data = await response.json()
+  if (!Array.isArray(data.questions) || data.questions.length < 5) throw new Error("Invalid quiz response")
+
+  return {
+    questions: data.questions,
+    source: data.source === "ai" ? "ai" : "fallback"
+  }
 }
 
 function QrPattern({ code }: { code: string }) {
@@ -101,10 +102,12 @@ export function GoalExperience() {
   const [joinCode, setJoinCode] = useState("")
   const [teams, setTeams] = useState<Team[]>(initialTeams)
   const [category, setCategory] = useState<QuizCategory>("International Competitions")
+  const [difficulty, setDifficulty] = useState<Difficulty>("medium")
   const [questions, setQuestions] = useState<QuizQuestion[]>(fallbackQuestions.slice(0, 5))
   const [questionIndex, setQuestionIndex] = useState(0)
   const [selectedAnswer, setSelectedAnswer] = useState("")
   const [aiError, setAiError] = useState<string | null>(null)
+  const [quizSource, setQuizSource] = useState<"ai" | "fallback">("fallback")
   const [turn, setTurn] = useState(0)
   const [partyMode, setPartyMode] = useState<PartyMode>("mime")
   const [mimeTarget, setMimeTarget] = useState(mimePlayers[0])
@@ -126,14 +129,17 @@ export function GoalExperience() {
     setScreen("quiz-loading")
     setAiError(null)
     try {
-      const generated = await generateQuizPack(category)
-      setQuestions(generated)
+      const generated = await requestQuizPack(category, difficulty)
+      setQuestions(generated.questions)
+      setQuizSource(generated.source)
+      if (generated.source === "fallback") setAiError("Local fallback loaded. The match continues without interruption.")
       setQuestionIndex(0)
       setSelectedAnswer("")
       setScreen("quiz-question")
     } catch {
       setAiError("AI generation failed. Validated fallback questions loaded.")
       setQuestions(fallbackQuestions.slice(0, 5))
+      setQuizSource("fallback")
       setQuestionIndex(0)
       setScreen("quiz-question")
     }
@@ -148,9 +154,9 @@ export function GoalExperience() {
     {screen === "join" && <JoinRoom joinCode={joinCode} setJoinCode={setJoinCode} setScreen={setScreen} />}
     {screen === "teams" && <Teams teams={teams} setScreen={setScreen} />}
     {screen === "games" && <GameSelection setScreen={setScreen} />}
-    {screen === "quiz-select" && <QuizSelect category={category} setCategory={setCategory} loadQuiz={loadQuiz} />}
+    {screen === "quiz-select" && <QuizSelect category={category} setCategory={setCategory} difficulty={difficulty} setDifficulty={setDifficulty} loadQuiz={loadQuiz} />}
     {screen === "quiz-loading" && <QuizLoading category={category} />}
-    {screen === "quiz-question" && <QuizQuestionScreen question={questions[questionIndex]} selected={selectedAnswer} setSelected={setSelectedAnswer} setScreen={setScreen} aiError={aiError} />}
+    {screen === "quiz-question" && <QuizQuestionScreen question={questions[questionIndex]} selected={selectedAnswer} setSelected={setSelectedAnswer} setScreen={setScreen} aiError={aiError} quizSource={quizSource} />}
     {screen === "quiz-reveal" && <QuizReveal question={questions[questionIndex]} selected={selectedAnswer} award={award} questionIndex={questionIndex} setQuestionIndex={setQuestionIndex} setSelectedAnswer={setSelectedAnswer} setScreen={setScreen} />}
     {screen === "quiz-ranking" && <Ranking teams={teams} setScreen={setScreen} />}
     {screen === "mime" && <MimeMode teams={teams} turn={turn} target={mimeTarget} setTarget={setMimeTarget} award={award} nextTurn={nextTurn} setScreen={setScreen} />}
@@ -189,17 +195,18 @@ function GameSelection({ setScreen }: { setScreen: (screen: Screen) => void }) {
   return <div className="mx-auto max-w-6xl"><Title eyebrow="Game selection" title="Choose the football challenge" text="Fast, social, competitive mini-games. Tactical match simulation is preview-only for now." /><div className="grid gap-4 md:grid-cols-3"><button onClick={() => setScreen("quiz-select")} className="rounded-[2rem] border border-white/10 bg-black/45 p-6 text-left transition hover:-translate-y-1 hover:border-emerald-300"><CircleHelp className="mb-5 h-12 w-12 text-emerald-300" /><h2 className="text-3xl font-black">Football Quiz</h2><p className="mt-3 text-slate-400">Individual answers, hidden scores, reveal every five questions.</p></button><button onClick={() => setScreen("rotation")} className="rounded-[2rem] border border-white/10 bg-black/45 p-6 text-left transition hover:-translate-y-1 hover:border-emerald-300"><Volleyball className="mb-5 h-12 w-12 text-emerald-300" /><h2 className="text-3xl font-black">Mime & Keyword</h2><p className="mt-3 text-slate-400">Team turns, quick guesses, football stars and clues.</p></button><button onClick={() => setScreen("simulation")} className="rounded-[2rem] border border-white/10 bg-black/45 p-6 text-left transition hover:-translate-y-1 hover:border-yellow-300"><Lock className="mb-5 h-12 w-12 text-yellow-300" /><h2 className="text-3xl font-black">Match Simulation</h2><p className="mt-3 text-slate-400">Locked tactical preview with passes, blocks, shots, and formations.</p></button></div></div>
 }
 
-function QuizSelect({ category, setCategory, loadQuiz }: { category: QuizCategory; setCategory: (category: QuizCategory) => void; loadQuiz: () => void }) {
+function QuizSelect({ category, setCategory, difficulty, setDifficulty, loadQuiz }: { category: QuizCategory; setCategory: (category: QuizCategory) => void; difficulty: Difficulty; setDifficulty: (difficulty: Difficulty) => void; loadQuiz: () => void }) {
   const categories: QuizCategory[] = ["Teams", "Players", "International Competitions"]
-  return <div className="mx-auto max-w-5xl"><Title eyebrow="AI quiz generator" title="Pick a football theme" text="The quiz architecture validates structured question JSON with Zod and falls back visually if generation fails." /><div className="grid gap-3 md:grid-cols-3">{categories.map((item) => <button key={item} onClick={() => setCategory(item)} className={`rounded-2xl border p-5 text-left font-black ${category === item ? "border-emerald-300 bg-emerald-300 text-slate-950" : "border-white/10 bg-black/45"}`}>{item}</button>)}</div><Panel className="mt-5 p-5"><div className="flex items-start gap-3"><Bot className="h-7 w-7 text-emerald-300" /><p className="text-sm leading-7 text-slate-300">AI-ready flow: generateObject-style generation boundary, Zod schema validation, structured JSON shape, loading screen, error fallback, categories, answer choices, correct answers, and difficulty.</p></div></Panel><button onClick={loadQuiz} className="mt-6 w-full rounded-2xl bg-emerald-300 px-6 py-4 font-black text-slate-950">Generate quiz</button></div>
+  const difficulties: Difficulty[] = ["easy", "medium", "hard"]
+  return <div className="mx-auto max-w-5xl"><Title eyebrow="AI quiz generator" title="Pick a football theme" text="The server generates structured football JSON with Vercel AI SDK, validates with Zod, and falls back automatically." /><div className="grid gap-3 md:grid-cols-3">{categories.map((item) => <button key={item} onClick={() => setCategory(item)} className={`rounded-2xl border p-5 text-left font-black ${category === item ? "border-emerald-300 bg-emerald-300 text-slate-950" : "border-white/10 bg-black/45"}`}>{item}</button>)}</div><div className="mt-4 grid gap-3 md:grid-cols-3">{difficulties.map((item) => <button key={item} onClick={() => setDifficulty(item)} className={`rounded-2xl border p-4 text-left font-black capitalize ${difficulty === item ? "border-lime-300 bg-lime-300 text-slate-950" : "border-white/10 bg-black/45"}`}>{item}</button>)}</div><Panel className="mt-5 p-5"><div className="flex items-start gap-3"><Bot className="h-7 w-7 text-emerald-300" /><p className="text-sm leading-7 text-slate-300">No API key is exposed in the browser. If Groq is unavailable, the game silently uses validated local backup quizzes.</p></div></Panel><button onClick={loadQuiz} className="mt-6 w-full rounded-2xl bg-emerald-300 px-6 py-4 font-black text-slate-950">Generate quiz</button></div>
 }
 
 function QuizLoading({ category }: { category: QuizCategory }) {
   return <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center"><Panel className="max-w-xl p-8 text-center md:p-12"><Bot className="mx-auto mb-6 h-16 w-16 animate-pulse text-emerald-300" /><h1 className="text-4xl font-black">Generating questions</h1><p className="mt-5 text-slate-300">Theme: {category}. Building validated football JSON pack...</p></Panel></div>
 }
 
-function QuizQuestionScreen({ question, selected, setSelected, setScreen, aiError }: { question: QuizQuestion; selected: string; setSelected: (value: string) => void; setScreen: (screen: Screen) => void; aiError: string | null }) {
-  return <div className="mx-auto max-w-5xl"><Title eyebrow={`${question.category} · ${question.difficulty}`} title="Question on the pitch" text="Answer individually. Scores stay hidden until the ranking reveal." />{aiError && <Panel className="mb-4 border-yellow-300/30 p-4 text-sm text-yellow-100">{aiError}</Panel>}<Panel className="p-6 md:p-8"><div className="mb-6 flex items-center justify-center gap-3 text-emerald-100"><Timer className="h-8 w-8" /><span className="text-6xl font-black tabular-nums">00:20</span></div><h2 className="text-center text-3xl font-black md:text-5xl">{question.question}</h2><div className="mt-8 grid gap-3 md:grid-cols-2">{question.choices.map((choice) => <button key={choice} onClick={() => setSelected(choice)} className={`rounded-2xl border p-5 text-left text-lg font-black ${selected === choice ? "border-emerald-300 bg-emerald-300 text-slate-950" : "border-white/10 bg-white/5"}`}>{choice}</button>)}</div><button disabled={!selected} onClick={() => setScreen("quiz-reveal")} className="mt-6 w-full rounded-2xl bg-emerald-300 px-6 py-4 font-black text-slate-950 disabled:opacity-40">Lock answer</button></Panel></div>
+function QuizQuestionScreen({ question, selected, setSelected, setScreen, aiError, quizSource }: { question: QuizQuestion; selected: string; setSelected: (value: string) => void; setScreen: (screen: Screen) => void; aiError: string | null; quizSource: "ai" | "fallback" }) {
+  return <div className="mx-auto max-w-5xl"><Title eyebrow={`${question.category} · ${question.difficulty} · ${quizSource === "ai" ? "AI generated" : "local fallback"}`} title="Question on the pitch" text="Answer individually. Scores stay hidden until the ranking reveal." />{aiError && <Panel className="mb-4 border-yellow-300/30 p-4 text-sm text-yellow-100">{aiError}</Panel>}<Panel className="p-6 md:p-8"><div className="mb-6 flex items-center justify-center gap-3 text-emerald-100"><Timer className="h-8 w-8" /><span className="text-6xl font-black tabular-nums">00:20</span></div><h2 className="text-center text-3xl font-black md:text-5xl">{question.question}</h2><div className="mt-8 grid gap-3 md:grid-cols-2">{question.choices.map((choice) => <button key={choice} onClick={() => setSelected(choice)} className={`rounded-2xl border p-5 text-left text-lg font-black ${selected === choice ? "border-emerald-300 bg-emerald-300 text-slate-950" : "border-white/10 bg-white/5"}`}>{choice}</button>)}</div><button disabled={!selected} onClick={() => setScreen("quiz-reveal")} className="mt-6 w-full rounded-2xl bg-emerald-300 px-6 py-4 font-black text-slate-950 disabled:opacity-40">Lock answer</button></Panel></div>
 }
 
 function QuizReveal({ question, selected, award, questionIndex, setQuestionIndex, setSelectedAnswer, setScreen }: { question: QuizQuestion; selected: string; award: () => void; questionIndex: number; setQuestionIndex: (value: number) => void; setSelectedAnswer: (value: string) => void; setScreen: (screen: Screen) => void }) {
