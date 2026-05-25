@@ -9,21 +9,31 @@ type GenerateGoalQuizOptions = {
   count?: number
 }
 
+const groqStructuredOutputModels = ["openai/gpt-oss-20b", "openai/gpt-oss-120b"] as const
+
 export async function generateGoalQuiz({ category, difficulty, count = 5 }: GenerateGoalQuizOptions) {
-  if (!process.env.GROQ_API_KEY) {
+  const hasGroqKey = Boolean(process.env.GROQ_API_KEY?.trim())
+
+  console.log("GOAL AI KEY DETECTED:", hasGroqKey)
+
+  if (!hasGroqKey) {
     return {
       source: "fallback" as const,
       ...getFallbackGoalQuiz(category, difficulty, count)
     }
   }
 
-  try {
-    const result = await generateObject({
-      model: groq("llama-3.1-8b-instant"),
-      schema: goalQuizPackSchema,
-      temperature: 0.8,
-      maxRetries: 1,
-      prompt: `Generate ${count} realistic football quiz questions for a local multiplayer mobile game named GOAL!!!.
+  for (const modelName of groqStructuredOutputModels) {
+    try {
+      console.log("GOAL AI MODEL:", modelName)
+
+      const result = await generateObject({
+        model: groq(modelName),
+        schema: goalQuizPackSchema,
+        temperature: 0.8,
+        maxRetries: 1,
+        system: "You are a football quiz engine. Generate valid JSON only. Never include markdown, comments, or explanations.",
+        prompt: `Generate ${count} realistic football quiz questions for a local multiplayer mobile game named GOAL!!!.
 
 Category: ${category}
 Difficulty: ${difficulty}
@@ -36,16 +46,26 @@ Rules:
 - Use varied football knowledge.
 - For International Competitions, include themes like World Cup, Champions League, AFCON, Euro, Copa America, Ballon d'Or, and historical records.
 - Keep questions fun, clear, and suitable for quick party gameplay.`
-    })
+      })
 
-    return {
-      source: "ai" as const,
-      ...sanitizeGoalQuizPack(result.object)
+      const sanitized = sanitizeGoalQuizPack(result.object)
+
+      if (sanitized.questions.length < count) {
+        console.log("GOAL AI ZOD ERROR:", "Generated quiz had too few unique valid questions.")
+        continue
+      }
+
+      return {
+        source: "ai" as const,
+        ...sanitized
+      }
+    } catch (error) {
+      console.log("GOAL AI ERROR:", error)
     }
-  } catch {
-    return {
-      source: "fallback" as const,
-      ...getFallbackGoalQuiz(category, difficulty, count)
-    }
+  }
+
+  return {
+    source: "fallback" as const,
+    ...getFallbackGoalQuiz(category, difficulty, count)
   }
 }
