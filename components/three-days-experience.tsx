@@ -5,7 +5,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { AlertTriangle, ArrowLeft, BadgeCheck, BookOpen, Check, Clock, Crown, Eye, Fingerprint, Gavel, History, Hourglass, KeyRound, LogIn, LucideIcon, MessageCircleWarning, Moon, QrCode, Radio, RefreshCw, ScanLine, ScrollText, ShieldQuestion, Skull, Sparkles, Timer, UserRound, Users, X } from "lucide-react"
 
-type Screen = "loader" | "menu" | "lobby" | "create" | "join" | "waiting" | "foram-select" | "wish" | "wish-review" | "conditions" | "player" | "foram" | "round" | "transition" | "accusation" | "reveal" | "elimination" | "survivors" | "history" | "profiles" | "end"
+type Screen = "loader" | "menu" | "lobby" | "create" | "join" | "waiting" | "foram-select" | "wish" | "wish-review" | "conditions" | "player" | "foram" | "monitoring" | "round" | "imminent" | "transition" | "accusation" | "reveal" | "condition-reveal" | "elimination" | "survivors" | "memory" | "history" | "profiles" | "end"
 type Role = "player" | "foram"
 type PlayerStatus = "alive" | "watched" | "suspected" | "eliminated"
 
@@ -53,14 +53,31 @@ const events = [
   "The Foram doubts you.",
   "A player suspects you.",
   "Your wish is becoming dangerous.",
-  "A condition may have been guessed."
+  "A condition may have been guessed.",
+  "Someone thinks they know your condition.",
+  "The Foram is watching you.",
+  "Your behavior is attracting attention.",
+  "A player doubts you.",
+  "Be careful with your actions.",
+  "Your condition appears to be exposed."
 ]
 
 const log = [
   "The wish was proposed and accepted by the table.",
   "The Foram modified the atmosphere before round one.",
   "A player asked too many questions about another player's behavior.",
-  "The observer detected hesitation during a public answer."
+  "The observer detected hesitation during a public answer.",
+  "A false suspicion changed the rhythm of the room.",
+  "One player defended themselves before anyone accused them.",
+  "The system recorded an abnormal silence after the second round."
+]
+
+const foramAlerts = [
+  "Inconsistent behavior detected.",
+  "The player seems nervous.",
+  "Potentially compromised condition.",
+  "Social anomaly detected near the active wish.",
+  "A player is avoiding direct answers."
 ]
 
 function generateCode() {
@@ -104,6 +121,11 @@ function EventNotice({ text, onClose }: { text: string | null; onClose: () => vo
   return <div className="fixed bottom-24 left-4 right-4 z-40 mx-auto max-w-md animate-in slide-in-from-bottom-4 duration-500 rounded-[1.5rem] border border-amber-200/25 bg-black/75 p-4 shadow-2xl shadow-amber-950/40 backdrop-blur-xl md:left-auto md:right-6"><div className="flex gap-3"><MessageCircleWarning className="h-6 w-6 shrink-0 text-amber-200" /><div className="flex-1"><p className="font-black">Silent observer</p><p className="mt-1 text-sm text-stone-300">{text}</p></div><button onClick={onClose}><X className="h-5 w-5" /></button></div></div>
 }
 
+function Blackout({ text, onClose }: { text: string | null; onClose: () => void }) {
+  if (!text) return null
+  return <button onClick={onClose} className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 px-6 text-center backdrop-blur-sm"><div className="animate-in fade-in zoom-in-95 duration-700"><p className="text-xs font-black uppercase tracking-[0.45em] text-red-200">System silence</p><h2 className="mt-5 max-w-3xl text-4xl font-black leading-tight text-stone-100 md:text-7xl">{text}</h2><p className="mt-8 text-sm text-stone-500">Tap to breathe again</p></div></button>
+}
+
 export function ThreeDaysExperience() {
   const [screen, setScreen] = useState<Screen>("loader")
   const [role, setRole] = useState<Role>("player")
@@ -117,6 +139,7 @@ export function ThreeDaysExperience() {
   const [accused, setAccused] = useState("VANTA")
   const [correctAccusation, setCorrectAccusation] = useState(true)
   const [notice, setNotice] = useState<string | null>(null)
+  const [blackout, setBlackout] = useState<string | null>(null)
   const [players, setPlayers] = useState<Player[]>(initialPlayers)
 
   useEffect(() => {
@@ -142,7 +165,11 @@ export function ThreeDaysExperience() {
     }
   }, [screen])
 
-  const randomEvent = () => setNotice(events[Math.floor(Math.random() * events.length)])
+  const randomEvent = () => {
+    const message = events[Math.floor(Math.random() * events.length)]
+    if (Math.random() > 0.55) setBlackout(message)
+    else setNotice(message)
+  }
   const eliminate = (name: string) => setPlayers((current) => current.map((player) => player.name === name ? { ...player, status: "eliminated" } : player))
 
   if (screen === "loader") {
@@ -151,6 +178,7 @@ export function ThreeDaysExperience() {
 
   return (
     <Shell screen={screen} setScreen={setScreen} role={role}>
+      <Blackout text={blackout} onClose={() => setBlackout(null)} />
       <EventNotice text={notice} onClose={() => setNotice(null)} />
       {screen === "menu" && <Menu setScreen={setScreen} />}
       {screen === "lobby" && <Lobby setScreen={setScreen} />}
@@ -163,18 +191,22 @@ export function ThreeDaysExperience() {
       {screen === "conditions" && <Conditions condition={condition} setCondition={setCondition} setScreen={setScreen} />}
       {screen === "player" && <PlayerConsole wish={wish} condition={condition} round={round} setScreen={setScreen} randomEvent={randomEvent} />}
       {screen === "foram" && <ForamConsole players={players} wish={wish} round={round} setScreen={setScreen} randomEvent={randomEvent} />}
+      {screen === "monitoring" && <ForamMonitoring players={players} setScreen={setScreen} randomEvent={randomEvent} />}
       {screen === "round" && <RoundTimer duration={duration} round={round} setRound={setRound} setScreen={setScreen} randomEvent={randomEvent} />}
+      {screen === "imminent" && <ImminentDeath setScreen={setScreen} randomEvent={randomEvent} />}
       {screen === "transition" && <RoundTransition round={round} setScreen={setScreen} />}
       {screen === "accusation" && <Accusation players={players} accused={accused} setAccused={setAccused} correct={correctAccusation} setCorrect={setCorrectAccusation} setScreen={setScreen} />}
-      {screen === "reveal" && <Reveal accused={accused} correct={correctAccusation} onContinue={() => { if (correctAccusation) eliminate(accused); setScreen("elimination") }} />}
+      {screen === "reveal" && <Reveal accused={accused} correct={correctAccusation} onContinue={() => { if (correctAccusation) eliminate(accused); setScreen(correctAccusation ? "condition-reveal" : "elimination") }} />}
+      {screen === "condition-reveal" && <ConditionReveal player={players.find((player) => player.name === accused)} setScreen={setScreen} />}
       {screen === "elimination" && <Elimination players={players} accused={accused} correct={correctAccusation} setScreen={setScreen} />}
       {screen === "survivors" && <Survivors players={players} setScreen={setScreen} />}
+      {screen === "memory" && <BehaviorMemory players={players} />}
       {screen === "history" && <InfoGrid eyebrow="Archive" title="History" icon={History} items={log} />}
       {screen === "profiles" && <Profiles players={players} />}
       {screen === "end" && <EndGame players={players} />}
 
       <nav className="fixed bottom-4 left-4 right-4 z-30 mx-auto grid max-w-3xl grid-cols-6 gap-2 rounded-[1.5rem] border border-white/10 bg-black/70 p-2 backdrop-blur-xl">
-        {[{ s: "player", i: UserRound }, { s: "foram", i: Crown }, { s: "round", i: Timer }, { s: "accusation", i: ShieldQuestion }, { s: "history", i: History }, { s: "profiles", i: Users }].map(({ s, i: Icon }) => <button key={s} onClick={() => setScreen(s as Screen)} className="flex items-center justify-center rounded-2xl py-3 text-stone-300 transition hover:bg-white/10 hover:text-white"><Icon className="h-5 w-5" /></button>)}
+        {[{ s: "player", i: UserRound }, { s: "monitoring", i: Crown }, { s: "round", i: Timer }, { s: "accusation", i: ShieldQuestion }, { s: "memory", i: History }, { s: "profiles", i: Users }].map(({ s, i: Icon }) => <button key={s} onClick={() => setScreen(s as Screen)} className="flex items-center justify-center rounded-2xl py-3 text-stone-300 transition hover:bg-white/10 hover:text-white"><Icon className="h-5 w-5" /></button>)}
       </nav>
     </Shell>
   )
@@ -224,8 +256,16 @@ function ForamConsole({ players, wish, round, setScreen, randomEvent }: { player
   return <div className="mx-auto max-w-6xl"><Title eyebrow="Foram interface" title="Grant. Watch. End." text="The Foram sees more than players, but still not everything. Power should feel dangerous." /><div className="grid gap-4 lg:grid-cols-[1fr_360px]"><Panel className="p-5 md:p-6">{players.map((player) => <div key={player.id} className="mb-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4"><div className="flex items-center justify-between"><div><p className="font-black">{player.name}</p><p className="text-xs uppercase tracking-[0.2em] text-stone-500">{player.code} · {player.status}</p></div><p className="text-2xl font-black text-amber-100">{player.progress}%</p></div><p className="mt-2 text-xs text-stone-500">Hidden activity signal only. Not proof.</p></div>)}</Panel><Panel className="p-6"><Crown className="mb-5 h-12 w-12 text-amber-200" /><h2 className="text-2xl font-black">Foram controls</h2><p className="mt-3 text-sm text-stone-400">Wish: {wish}</p><p className="mt-2 text-sm text-stone-400">Round {round}/3</p><div className="mt-6 grid gap-3"><button onClick={randomEvent} className="rounded-2xl border border-white/15 px-5 py-4 font-black">Launch event</button><button onClick={() => setScreen("accusation")} className="rounded-2xl border border-white/15 px-5 py-4 font-black">Check condition</button><button onClick={() => setScreen("elimination")} className="rounded-2xl bg-amber-100 px-5 py-4 font-black text-stone-950">Announce elimination</button></div></Panel></div></div>
 }
 
+function ForamMonitoring({ players, setScreen, randomEvent }: { players: Player[]; setScreen: (screen: Screen) => void; randomEvent: () => void }) {
+  return <div className="mx-auto max-w-6xl"><Title eyebrow="Foram monitoring" title="Observation room" text="The Foram receives suspicious signals, social anomalies, and nervous patterns. None of them are proof." /><div className="grid gap-4 lg:grid-cols-[1fr_360px]"><Panel className="p-5 md:p-6"><div className="grid gap-3 md:grid-cols-2">{players.filter((player) => player.status !== "eliminated").map((player) => <div key={player.id} className="rounded-2xl border border-amber-200/10 bg-black/35 p-4"><div className="flex items-center justify-between"><div><p className="text-xl font-black">{player.name}</p><p className="text-xs uppercase tracking-[0.2em] text-stone-500">{player.code} · {player.status}</p></div><Eye className="h-7 w-7 text-amber-200" /></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-gradient-to-r from-red-950 via-amber-700 to-amber-100" style={{ width: `${player.progress}%` }} /></div><p className="mt-3 text-xs text-stone-500">Social pressure signal: unstable</p></div>)}</div></Panel><Panel className="p-6"><Crown className="mb-5 h-12 w-12 text-amber-200" /><h2 className="text-2xl font-black">Foram alerts</h2><div className="mt-5 space-y-3">{foramAlerts.map((alert) => <div key={alert} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm text-stone-300">{alert}</div>)}</div><div className="mt-6 grid gap-3"><button onClick={randomEvent} className="rounded-2xl border border-white/15 px-5 py-4 font-black">Send silent pressure</button><button onClick={() => setScreen("accusation")} className="rounded-2xl bg-amber-100 px-5 py-4 font-black text-stone-950">Trigger check</button></div></Panel></div></div>
+}
+
+function ImminentDeath({ setScreen, randomEvent }: { setScreen: (screen: Screen) => void; randomEvent: () => void }) {
+  return <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center"><Panel className="max-w-3xl animate-pulse border-red-300/30 bg-red-950/15 p-8 text-center shadow-2xl shadow-red-950/40 md:p-12"><AlertTriangle className="mx-auto mb-6 h-20 w-20 text-red-200" /><p className="text-xs font-black uppercase tracking-[0.45em] text-red-200">Critical silence</p><h1 className="mt-4 text-5xl font-black md:text-7xl">The third day is approaching.</h1><p className="mx-auto mt-6 max-w-xl text-stone-300">Time is beginning to disappear. Someone will not survive. Speak carefully. Move carefully. The room is listening.</p><div className="mt-8 grid grid-cols-5 gap-2">{Array.from({ length: 15 }, (_, index) => <div key={index} className={`h-2 rounded-full ${index % 3 === 0 ? "bg-red-300" : "bg-white/10"}`} />)}</div><div className="mt-8 grid gap-3 sm:grid-cols-2"><button onClick={randomEvent} className="rounded-2xl border border-red-200/30 px-6 py-4 font-black">System pulse</button><button onClick={() => setScreen("elimination")} className="rounded-2xl bg-red-200 px-6 py-4 font-black text-stone-950">Let time end</button></div></Panel></div>
+}
+
 function RoundTimer({ duration, round, setRound, setScreen, randomEvent }: { duration: number; round: number; setRound: (round: number) => void; setScreen: (screen: Screen) => void; randomEvent: () => void }) {
-  return <div className="mx-auto max-w-4xl"><Title eyebrow="Round timer" title={`Day ${round}`} text="The timer manages pressure. The real game happens between the players." /><Panel className="p-8 text-center md:p-12"><Hourglass className="mx-auto mb-6 h-16 w-16 animate-pulse text-amber-200" /><div className="text-7xl font-black tabular-nums md:text-9xl">{duration}:00</div><div className="mt-8 h-3 overflow-hidden rounded-full bg-white/10"><div className="h-full w-2/3 rounded-full bg-gradient-to-r from-amber-900 to-amber-100" /></div><p className="mt-5 text-stone-400">Tension increases after each round.</p><div className="mt-8 grid gap-3 sm:grid-cols-3"><button onClick={randomEvent} className="rounded-2xl border border-white/15 px-5 py-4 font-black">Event</button><button onClick={() => setScreen("accusation")} className="rounded-2xl border border-white/15 px-5 py-4 font-black">Accusation</button><button onClick={() => { if (round >= 3) setScreen("elimination"); else { setRound(round + 1); setScreen("transition") } }} className="rounded-2xl bg-amber-100 px-5 py-4 font-black text-stone-950">End round</button></div></Panel></div>
+  return <div className="mx-auto max-w-4xl"><Title eyebrow="Round timer" title={`Day ${round}`} text="The timer manages pressure. The real game happens between the players." /><Panel className={`p-8 text-center md:p-12 ${round >= 3 ? "border-red-300/30 shadow-red-950/40" : ""}`}><Hourglass className="mx-auto mb-6 h-16 w-16 animate-pulse text-amber-200" /><div className="text-7xl font-black tabular-nums md:text-9xl">{duration}:00</div><div className="mt-8 h-3 overflow-hidden rounded-full bg-white/10"><div className={`h-full rounded-full ${round >= 3 ? "w-[88%] bg-gradient-to-r from-red-950 via-red-400 to-amber-100" : "w-2/3 bg-gradient-to-r from-amber-900 to-amber-100"}`} /></div><p className="mt-5 text-stone-400">{round >= 3 ? "The third day is approaching. Time is beginning to disappear." : "Tension increases after each round."}</p><div className="mt-8 grid gap-3 sm:grid-cols-3"><button onClick={randomEvent} className="rounded-2xl border border-white/15 px-5 py-4 font-black">Event</button><button onClick={() => setScreen("accusation")} className="rounded-2xl border border-white/15 px-5 py-4 font-black">Accusation</button><button onClick={() => { if (round >= 3) setScreen("imminent"); else { setRound(round + 1); setScreen("transition") } }} className="rounded-2xl bg-amber-100 px-5 py-4 font-black text-stone-950">{round >= 3 ? "Critical time" : "End round"}</button></div></Panel></div>
 }
 
 function RoundTransition({ round, setScreen }: { round: number; setScreen: (screen: Screen) => void }) {
@@ -240,13 +280,29 @@ function Reveal({ accused, correct, onContinue }: { accused: string; correct: bo
   return <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center"><Panel className="max-w-2xl p-8 text-center md:p-12"><Skull className="mx-auto mb-6 h-20 w-20 animate-pulse text-amber-200" /><p className="text-xs font-black uppercase tracking-[0.35em] text-amber-200">Revelation</p><h1 className="mt-3 text-4xl font-black md:text-6xl">{correct ? `${accused} was exposed` : "The condition remains hidden"}</h1><p className="mt-5 text-stone-300">{correct ? "The guessed condition is enough. The player cannot continue." : "The accusation failed. The room becomes less safe."}</p><button onClick={onContinue} className="mt-8 rounded-2xl bg-amber-100 px-6 py-4 font-black text-stone-950">Continue</button></Panel></div>
 }
 
+function ConditionReveal({ player, setScreen }: { player?: Player; setScreen: (screen: Screen) => void }) {
+  return <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center"><Panel className="max-w-2xl border-red-300/20 bg-black/60 p-8 text-center shadow-2xl shadow-red-950/30 md:p-12"><ScrollText className="mx-auto mb-6 h-20 w-20 text-amber-200" /><p className="text-xs font-black uppercase tracking-[0.35em] text-red-200">Condition revealed</p><h1 className="mt-3 text-4xl font-black md:text-6xl">{player?.name ?? "The player"} failed to hide it.</h1><p className="mt-6 text-xl leading-9 text-stone-200">Their condition was: <span className="font-black text-amber-100">{player?.condition ?? "unknown"}</span></p><p className="mt-5 text-stone-400">The room now knows too much. The player slowly disappears from the game.</p><button onClick={() => setScreen("elimination")} className="mt-8 rounded-2xl bg-amber-100 px-6 py-4 font-black text-stone-950">Let them fade</button></Panel></div>
+}
+
 function Elimination({ players, accused, correct, setScreen }: { players: Player[]; accused: string; correct: boolean; setScreen: (screen: Screen) => void }) {
   const survivors = players.filter((player) => player.status !== "eliminated").length
   return <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center"><Panel className="max-w-2xl p-8 text-center md:p-12"><Skull className="mx-auto mb-6 h-20 w-20 text-amber-200" /><p className="text-xs font-black uppercase tracking-[0.35em] text-amber-200">Elimination</p><h1 className="mt-3 text-4xl font-black md:text-6xl">{correct ? accused : "One player fades"}</h1><p className="mt-5 text-stone-300">A new game begins with one fewer player. Survivors remaining: {survivors}.</p><button onClick={() => setScreen("survivors")} className="mt-8 rounded-2xl bg-amber-100 px-6 py-4 font-black text-stone-950">Update survivors</button></Panel></div>
 }
 
 function Survivors({ players, setScreen }: { players: Player[]; setScreen: (screen: Screen) => void }) {
-  return <div className="mx-auto max-w-6xl"><Title eyebrow="Survivors" title="The table is smaller" text="The game can begin again with fewer players and the same fear." /><div className="grid gap-4 md:grid-cols-4">{players.map((player) => <Panel key={player.id} className={`p-5 text-center ${player.status === "eliminated" ? "opacity-40 grayscale" : ""}`}><UserRound className="mx-auto mb-4 h-10 w-10 text-amber-200" /><h2 className="font-black">{player.name}</h2><p className="mt-1 text-sm text-stone-500">{player.status}</p></Panel>)}</div><div className="mt-6 grid gap-3 sm:grid-cols-2"><button onClick={() => setScreen("wish")} className="rounded-2xl bg-amber-100 px-6 py-4 font-black text-stone-950">New game</button><button onClick={() => setScreen("end")} className="rounded-2xl border border-white/15 px-6 py-4 font-black">End</button></div></div>
+  const remaining = players.filter((player) => player.status !== "eliminated").length
+  return <div className="mx-auto max-w-6xl"><Title eyebrow="Emotional reboot" title={`${remaining} survivors remain`} text="The table is smaller. The silence is heavier. Every elimination changes how the group breathes." /><Panel className="mb-5 border-red-300/20 bg-red-950/10 p-6 text-center"><p className="text-2xl font-black">Each elimination impacts the group.</p><p className="mt-2 text-sm text-stone-400">A new game begins, but trust does not reset.</p></Panel><div className="grid gap-4 md:grid-cols-4">{players.map((player) => <Panel key={player.id} className={`p-5 text-center transition duration-700 ${player.status === "eliminated" ? "opacity-30 grayscale scale-95" : ""}`}><UserRound className="mx-auto mb-4 h-10 w-10 text-amber-200" /><h2 className="font-black">{player.name}</h2><p className="mt-1 text-sm text-stone-500">{player.status}</p></Panel>)}</div><div className="mt-6 grid gap-3 sm:grid-cols-2"><button onClick={() => setScreen("wish")} className="rounded-2xl bg-amber-100 px-6 py-4 font-black text-stone-950">Recreate tension</button><button onClick={() => setScreen("end")} className="rounded-2xl border border-white/15 px-6 py-4 font-black">End</button></div></div>
+}
+
+function BehaviorMemory({ players }: { players: Player[] }) {
+  const records = [
+    "NOVA was suspected after speaking too carefully.",
+    "MIRAGE avoided answering during the active wish.",
+    "VANTA was accused without enough certainty.",
+    "ORION changed behavior after a silent notification.",
+    "A failed accusation remains socially unresolved."
+  ]
+  return <div className="mx-auto max-w-6xl"><Title eyebrow="Behavioral memory" title="The phone remembers patterns" text="Past accusations, suspected players, unusual behavior, and social history are recorded without revealing the real truth." /><div className="grid gap-4 lg:grid-cols-[1fr_340px]"><Panel className="p-5 md:p-6"><div className="space-y-3">{records.map((record, index) => <div key={record} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"><p className="text-xs font-black uppercase tracking-[0.3em] text-stone-500">Memory {index + 1}</p><p className="mt-2 text-stone-300">{record}</p></div>)}</div></Panel><Panel className="p-6"><BookOpen className="mb-5 h-12 w-12 text-amber-200" /><h2 className="text-2xl font-black">Suspicion index</h2><div className="mt-5 space-y-4">{players.filter((player) => player.status !== "eliminated").map((player) => <div key={player.id}><div className="mb-2 flex justify-between text-sm"><span>{player.name}</span><span>{player.progress}%</span></div><div className="h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-gradient-to-r from-red-950 to-amber-100" style={{ width: `${player.progress}%` }} /></div></div>)}</div></Panel></div></div>
 }
 
 function InfoGrid({ eyebrow, title, icon: Icon, items }: { eyebrow: string; title: string; icon: LucideIcon; items: string[] }) {
