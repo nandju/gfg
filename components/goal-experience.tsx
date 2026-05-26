@@ -5,7 +5,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { ArrowLeft, BadgeCheck, BarChart3, Bot, Check, CircleHelp, Dumbbell, History, KeyRound, Lock, LogIn, Medal, Play, Plus, RefreshCw, ScanLine, Shield, Timer, Trophy, Users, Volleyball } from "lucide-react"
 
-type Screen = "loader" | "menu" | "lobby" | "create" | "join" | "teams" | "games" | "quiz-select" | "quiz-loading" | "quiz-question" | "quiz-reveal" | "quiz-ranking" | "mime" | "keyword" | "rotation" | "team-score" | "history" | "results" | "victory" | "simulation"
+type Screen = "loader" | "menu" | "lobby" | "create" | "join" | "teams" | "games" | "quiz-select" | "quiz-loading" | "quiz-question" | "quiz-reveal" | "quiz-ranking" | "mime-loading" | "keyword-loading" | "mime" | "keyword" | "rotation" | "team-score" | "history" | "results" | "victory" | "simulation"
 type QuizCategory = "Teams" | "Players" | "International Competitions"
 type Difficulty = "easy" | "medium" | "hard"
 type PartyMode = "mime" | "keyword"
@@ -26,6 +26,18 @@ type Team = {
   score: number
 }
 
+type MimeChallenge = {
+  player: string
+  difficulty: Difficulty
+  mimeHints: string[]
+}
+
+type KeywordChallenge = {
+  answer: string
+  keywords: string[]
+  difficulty: Difficulty
+}
+
 const fallbackQuestions: QuizQuestion[] = [
   { question: "Quel pays a remporté la Coupe du monde 2022 ?", choices: ["France", "Argentine", "Brésil", "Allemagne"], answer: "Argentine", category: "International Competitions", difficulty: "easy" },
   { question: "Quel club est surnommé les Red Devils ?", choices: ["Liverpool", "Arsenal", "Manchester United", "AC Milan"], answer: "Manchester United", category: "Teams", difficulty: "easy" },
@@ -40,42 +52,119 @@ const fallbackQuestions: QuizQuestion[] = [
 ]
 
 const initialTeams: Team[] = [
-  { id: "blue", name: "Blue Stars", color: "from-sky-500 to-blue-700", players: ["NOVA", "MILO"], score: 0 },
-  { id: "gold", name: "Golden XI", color: "from-yellow-300 to-orange-500", players: ["LINA", "KAI"], score: 0 }
+  { id: "blue", name: "Étoiles bleues", color: "from-sky-500 to-blue-700", players: ["NOVA", "MILO"], score: 0 },
+  { id: "gold", name: "Onze doré", color: "from-yellow-300 to-orange-500", players: ["LINA", "KAI"], score: 0 }
 ]
 
 const mimePlayers = ["Kylian Mbappe", "Cristiano Ronaldo", "Lionel Messi", "Erling Haaland", "Neymar", "Sadio Mane", "Mohamed Salah", "Zinedine Zidane"]
 const keywordCards = [
-  { clue: "7", answer: "Cristiano Ronaldo" },
-  { clue: "Barcelone", answer: "Lionel Messi" },
-  { clue: "Roi", answer: "Eric Cantona" },
-  { clue: "Norvège", answer: "Erling Haaland" },
-  { clue: "Égypte", answer: "Mohamed Salah" },
-  { clue: "Paris", answer: "Kylian Mbappe" }
+  { keywords: ["7", "Portugal", "Siiiu"], answer: "Cristiano Ronaldo", difficulty: "easy" as Difficulty },
+  { keywords: ["Barcelone", "Argentine", "10"], answer: "Lionel Messi", difficulty: "easy" as Difficulty },
+  { keywords: ["Roi", "Manchester", "Col relevé"], answer: "Eric Cantona", difficulty: "medium" as Difficulty },
+  { keywords: ["Norvège", "Puissance", "City"], answer: "Erling Haaland", difficulty: "medium" as Difficulty },
+  { keywords: ["Égypte", "Liverpool", "Pharaon"], answer: "Mohamed Salah", difficulty: "medium" as Difficulty },
+  { keywords: ["Paris", "Vitesse", "France"], answer: "Kylian Mbappe", difficulty: "easy" as Difficulty }
 ]
-const matchHistory = ["Blue Stars a gagné la manche de quiz 1 grâce à une réponse tardive.", "Golden XI a dominé le mode Mime avec deux réponses parfaites.", "Un indice mot-clé a changé le rythme du match.", "Les scores sont restés cachés jusqu'à la révélation de la cinquième question."]
+const matchHistory = ["Les Étoiles bleues ont gagné la manche de quiz 1 grâce à une réponse tardive.", "Le Onze doré a dominé le mode Mime avec deux réponses parfaites.", "Un indice mot-clé a changé le rythme du match.", "Les scores sont restés cachés jusqu'à la révélation de la cinquième question."]
 
 function generateCode() {
   const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ"
   return `GL-${letters[Math.floor(Math.random() * letters.length)]}${Math.floor(100 + Math.random() * 900)}`
 }
 
-async function requestQuizPack(category: QuizCategory, difficulty: Difficulty): Promise<{ questions: QuizQuestion[]; source: "ai" | "fallback" }> {
-  const response = await fetch("/api/goal-quiz", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ category, difficulty, count: 5 })
-  })
+async function fetchWithRetry<T>(
+  url: string,
+  body: unknown,
+  parser: (data: unknown) => T,
+  options: { retries?: number; timeoutMs?: number } = {}
+): Promise<T> {
+  const { retries = 2, timeoutMs = 12000 } = options
+  const controller = new AbortController()
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
 
-  if (!response.ok) throw new Error("La génération du quiz a échoué")
+  let lastError: Error | undefined
 
-  const data = await response.json()
-  if (!Array.isArray(data.questions) || data.questions.length < 5) throw new Error("Réponse de quiz invalide")
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        cache: "no-store",
+        signal: controller.signal
+      })
 
-  return {
-    questions: data.questions,
-    source: data.source === "ai" ? "ai" : "fallback"
+      window.clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
+
+      const data = await response.json()
+      return parser(data)
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error))
+      if (attempt < retries) {
+        await new Promise((resolve) => window.setTimeout(resolve, 800 * (attempt + 1)))
+      }
+    }
   }
+
+  throw lastError ?? new Error("Échec après plusieurs tentatives")
+}
+
+async function requestQuizPack(category: QuizCategory, difficulty: Difficulty): Promise<{ questions: QuizQuestion[]; source: "ai" | "fallback" }> {
+  return fetchWithRetry(
+    "/api/goal-quiz",
+    { category, difficulty, count: 5 },
+    (data) => {
+      const payload = data as Record<string, unknown>
+      if (!Array.isArray(payload.questions) || payload.questions.length < 5) {
+        throw new Error("Réponse de quiz invalide")
+      }
+      return {
+        questions: payload.questions as QuizQuestion[],
+        source: payload.source === "ai" ? "ai" : "fallback"
+      }
+    },
+    { retries: 2, timeoutMs: 15000 }
+  )
+}
+
+async function requestMimeChallenge(difficulty: Difficulty): Promise<{ challenge: MimeChallenge; source: "ai" | "fallback" }> {
+  return fetchWithRetry(
+    "/api/goal-mime",
+    { difficulty },
+    (data) => {
+      const payload = data as Record<string, unknown>
+      if (!payload?.challenge || typeof (payload.challenge as Record<string, unknown>).player !== "string" || !Array.isArray((payload.challenge as Record<string, unknown>).mimeHints)) {
+        throw new Error("Réponse de mime invalide")
+      }
+      return {
+        challenge: payload.challenge as MimeChallenge,
+        source: payload.source === "ai" ? "ai" : "fallback"
+      }
+    },
+    { retries: 2, timeoutMs: 12000 }
+  )
+}
+
+async function requestKeywordChallenge(difficulty: Difficulty): Promise<{ challenge: KeywordChallenge; source: "ai" | "fallback" }> {
+  return fetchWithRetry(
+    "/api/goal-keyword",
+    { difficulty },
+    (data) => {
+      const payload = data as Record<string, unknown>
+      if (!payload?.challenge || typeof (payload.challenge as Record<string, unknown>).answer !== "string" || !Array.isArray((payload.challenge as Record<string, unknown>).keywords)) {
+        throw new Error("Réponse de mot-clé invalide")
+      }
+      return {
+        challenge: payload.challenge as KeywordChallenge,
+        source: payload.source === "ai" ? "ai" : "fallback"
+      }
+    },
+    { retries: 2, timeoutMs: 12000 }
+  )
 }
 
 function QrPattern({ code }: { code: string }) {
@@ -108,10 +197,15 @@ export function GoalExperience() {
   const [selectedAnswer, setSelectedAnswer] = useState("")
   const [aiError, setAiError] = useState<string | null>(null)
   const [quizSource, setQuizSource] = useState<"ai" | "fallback">("fallback")
+  const [mimeSource, setMimeSource] = useState<"ai" | "fallback">("fallback")
+  const [keywordSource, setKeywordSource] = useState<"ai" | "fallback">("fallback")
+  const [quizError, setQuizError] = useState<string | null>(null)
+  const [mimeError, setMimeError] = useState<string | null>(null)
+  const [keywordError, setKeywordError] = useState<string | null>(null)
   const [turn, setTurn] = useState(0)
   const [partyMode, setPartyMode] = useState<PartyMode>("mime")
-  const [mimeTarget, setMimeTarget] = useState(mimePlayers[0])
-  const [keywordIndex, setKeywordIndex] = useState(0)
+  const [mimeChallenge, setMimeChallenge] = useState<MimeChallenge>({ player: mimePlayers[0], difficulty: "medium", mimeHints: ["Célébration", "Numéro", "Club"] })
+  const [keywordChallenge, setKeywordChallenge] = useState<KeywordChallenge>(keywordCards[0])
 
   useEffect(() => {
     if (screen !== "loader") return
@@ -128,6 +222,7 @@ export function GoalExperience() {
   const loadQuiz = async () => {
     setScreen("quiz-loading")
     setAiError(null)
+    setQuizError(null)
     try {
       const generated = await requestQuizPack(category, difficulty)
       setQuestions(generated.questions)
@@ -137,12 +232,43 @@ export function GoalExperience() {
       setSelectedAnswer("")
       setScreen("quiz-question")
     } catch {
+      setQuizError("La génération IA a échoué après 3 tentatives. Questions de secours validées chargées.")
       setAiError("La génération IA a échoué. Questions de secours validées chargées.")
       setQuestions(fallbackQuestions.slice(0, 5))
       setQuizSource("fallback")
       setQuestionIndex(0)
       setScreen("quiz-question")
     }
+  }
+  const loadMime = async () => {
+    setScreen("mime-loading")
+    setMimeError(null)
+    try {
+      const generated = await requestMimeChallenge(difficulty)
+      setMimeChallenge(generated.challenge)
+      setMimeSource(generated.source)
+      if (generated.source === "fallback") setMimeError("Mode secours activé. Nouveau joueur local chargé.")
+    } catch {
+      setMimeError("La génération IA a échoué après 3 tentatives. Joueur local chargé.")
+      setMimeChallenge({ player: mimePlayers[Math.floor(Math.random() * mimePlayers.length)], difficulty, mimeHints: ["Célébration", "Numéro", "Club"] })
+      setMimeSource("fallback")
+    }
+    setScreen("mime")
+  }
+  const loadKeyword = async () => {
+    setScreen("keyword-loading")
+    setKeywordError(null)
+    try {
+      const generated = await requestKeywordChallenge(difficulty)
+      setKeywordChallenge(generated.challenge)
+      setKeywordSource(generated.source)
+      if (generated.source === "fallback") setKeywordError("Mode secours activé. Nouvelle carte locale chargée.")
+    } catch {
+      setKeywordError("La génération IA a échoué après 3 tentatives. Carte locale chargée.")
+      setKeywordChallenge(keywordCards[Math.floor(Math.random() * keywordCards.length)])
+      setKeywordSource("fallback")
+    }
+    setScreen("keyword")
   }
 
   if (screen === "loader") return <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white"><div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(34,197,94,.28),transparent_45%)]" /><div className="relative z-10 w-full max-w-sm text-center"><div className="relative mx-auto mb-7 h-28 w-28 overflow-hidden rounded-[2rem] border border-emerald-300/60 shadow-2xl shadow-emerald-950/60"><Image src="/goal!!!/cover.png" alt="GOAL!!!" fill priority className="object-cover" /></div><p className="text-xs font-black uppercase tracking-[0.45em] text-emerald-300">Coup d'envoi en chargement</p><h1 className="mt-3 text-6xl font-black">GOAL!!!</h1><div className="mt-8 h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-lime-300 to-white transition-all duration-200" style={{ width: `${progress}%` }} /></div><p className="mt-4 text-sm text-slate-400">Les projecteurs du stade s'allument... {progress}%</p></div></main>
@@ -156,12 +282,14 @@ export function GoalExperience() {
     {screen === "games" && <GameSelection setScreen={setScreen} />}
     {screen === "quiz-select" && <QuizSelect category={category} setCategory={setCategory} difficulty={difficulty} setDifficulty={setDifficulty} loadQuiz={loadQuiz} />}
     {screen === "quiz-loading" && <QuizLoading category={category} />}
-    {screen === "quiz-question" && <QuizQuestionScreen question={questions[questionIndex]} selected={selectedAnswer} setSelected={setSelectedAnswer} setScreen={setScreen} aiError={aiError} quizSource={quizSource} />}
+    {screen === "quiz-question" && <QuizQuestionScreen question={questions[questionIndex]} selected={selectedAnswer} setSelected={setSelectedAnswer} setScreen={setScreen} aiError={aiError} quizSource={quizSource} onRetry={loadQuiz} quizError={quizError} />}
     {screen === "quiz-reveal" && <QuizReveal question={questions[questionIndex]} selected={selectedAnswer} award={award} questionIndex={questionIndex} setQuestionIndex={setQuestionIndex} setSelectedAnswer={setSelectedAnswer} setScreen={setScreen} />}
     {screen === "quiz-ranking" && <Ranking teams={teams} setScreen={setScreen} />}
-    {screen === "mime" && <MimeMode teams={teams} turn={turn} target={mimeTarget} setTarget={setMimeTarget} award={award} nextTurn={nextTurn} setScreen={setScreen} />}
-    {screen === "keyword" && <KeywordMode teams={teams} turn={turn} card={keywordCards[keywordIndex]} nextCard={() => setKeywordIndex((current) => (current + 1) % keywordCards.length)} award={award} nextTurn={nextTurn} setScreen={setScreen} />}
-    {screen === "rotation" && <Rotation teams={teams} turn={turn} mode={partyMode} setMode={setPartyMode} setScreen={setScreen} />}
+    {screen === "mime-loading" && <AiModeLoading title="Sélection du joueur légendaire..." lines={["Analyse des célébrations football...", "Génération des gestes de mime..."]} />}
+    {screen === "keyword-loading" && <AiModeLoading title="Construction des indices football..." lines={["Analyse de l'héritage du joueur...", "Préparation du défi mot-clé..."]} />}
+    {screen === "mime" && <MimeMode teams={teams} turn={turn} challenge={mimeChallenge} source={mimeSource} loadMime={loadMime} award={award} nextTurn={nextTurn} setScreen={setScreen} mimeError={mimeError} />}
+    {screen === "keyword" && <KeywordMode teams={teams} turn={turn} challenge={keywordChallenge} source={keywordSource} loadKeyword={loadKeyword} award={award} nextTurn={nextTurn} setScreen={setScreen} keywordError={keywordError} />}
+    {screen === "rotation" && <Rotation teams={teams} turn={turn} mode={partyMode} setMode={setPartyMode} loadMime={loadMime} loadKeyword={loadKeyword} />}
     {screen === "team-score" && <TeamScore teams={teams} setScreen={setScreen} />}
     {screen === "history" && <HistoryScreen />}
     {screen === "results" && <Results teams={teams} setScreen={setScreen} />}
@@ -202,11 +330,15 @@ function QuizSelect({ category, setCategory, difficulty, setDifficulty, loadQuiz
 }
 
 function QuizLoading({ category }: { category: QuizCategory }) {
-  return <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center"><Panel className="max-w-xl p-8 text-center md:p-12"><Bot className="mx-auto mb-6 h-16 w-16 animate-pulse text-emerald-300" /><h1 className="text-4xl font-black">Génération des questions</h1><p className="mt-5 text-slate-300">Thème: {category === "Teams" ? "Équipes" : category === "Players" ? "Joueurs" : "Compétitions internationales"}. Création du pack JSON football validé...</p></Panel></div>
+  return <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center"><Panel className="max-w-xl p-8 text-center md:p-12"><Bot className="mx-auto mb-6 h-16 w-16 animate-pulse text-emerald-300" /><h1 className="text-4xl font-black">Génération IA des questions</h1><p className="mt-5 text-slate-300">Thème: {category === "Teams" ? "Équipes" : category === "Players" ? "Joueurs" : "Compétitions internationales"}. Le serveur génère un pack JSON structuré avec secours automatique...</p><div className="mt-6 space-y-2"><div className="mx-auto h-1 w-32 overflow-hidden rounded-full bg-white/10"><div className="h-full animate-pulse rounded-full bg-emerald-400" /></div><p className="text-xs text-slate-500">Jusqu'à 3 tentatives · 15 secondes max</p></div></Panel></div>
 }
 
-function QuizQuestionScreen({ question, selected, setSelected, setScreen, aiError, quizSource }: { question: QuizQuestion; selected: string; setSelected: (value: string) => void; setScreen: (screen: Screen) => void; aiError: string | null; quizSource: "ai" | "fallback" }) {
-  return <div className="mx-auto max-w-5xl"><Title eyebrow={`${question.category} · ${question.difficulty} · ${quizSource === "ai" ? "généré par IA" : "secours local"}`} title="Question sur le terrain" text="Répondez individuellement. Les scores restent cachés jusqu'à la révélation du classement." />{aiError && <Panel className="mb-4 border-yellow-300/30 p-4 text-sm text-yellow-100">{aiError}</Panel>}<Panel className="p-6 md:p-8"><div className="mb-6 flex items-center justify-center gap-3 text-emerald-100"><Timer className="h-8 w-8" /><span className="text-6xl font-black tabular-nums">00:20</span></div><h2 className="text-center text-3xl font-black md:text-5xl">{question.question}</h2><div className="mt-8 grid gap-3 md:grid-cols-2">{question.choices.map((choice) => <button key={choice} onClick={() => setSelected(choice)} className={`rounded-2xl border p-5 text-left text-lg font-black ${selected === choice ? "border-emerald-300 bg-emerald-300 text-slate-950" : "border-white/10 bg-white/5"}`}>{choice}</button>)}</div><button disabled={!selected} onClick={() => setScreen("quiz-reveal")} className="mt-6 w-full rounded-2xl bg-emerald-300 px-6 py-4 font-black text-slate-950 disabled:opacity-40">Verrouiller la réponse</button></Panel></div>
+function AiModeLoading({ title, lines }: { title: string; lines: string[] }) {
+  return <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center"><Panel className="max-w-xl p-8 text-center md:p-12"><Bot className="mx-auto mb-6 h-16 w-16 animate-pulse text-emerald-300" /><h1 className="text-4xl font-black">{title}</h1><div className="mt-6 space-y-3">{lines.map((line) => <div key={line} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-slate-300">{line}</div>)}</div><div className="mt-6 space-y-2"><div className="mx-auto h-1 w-32 overflow-hidden rounded-full bg-white/10"><div className="h-full animate-pulse rounded-full bg-emerald-400" /></div><p className="text-xs text-slate-500">Jusqu'à 3 tentatives · 12 secondes max · Secours automatique</p></div></Panel></div>
+}
+
+function QuizQuestionScreen({ question, selected, setSelected, setScreen, aiError, quizSource, onRetry, quizError }: { question: QuizQuestion; selected: string; setSelected: (value: string) => void; setScreen: (screen: Screen) => void; aiError: string | null; quizSource: "ai" | "fallback"; onRetry?: () => void; quizError: string | null }) {
+  return <div className="mx-auto max-w-5xl"><Title eyebrow={`${question.category} · ${question.difficulty} · ${quizSource === "ai" ? "généré par IA" : "secours local"}`} title="Question sur le terrain" text="Répondez individuellement. Les scores restent cachés jusqu'à la révélation du classement." />{aiError && <Panel className="mb-4 border-yellow-300/30 p-4 text-sm text-yellow-100">{aiError}</Panel>}{quizSource === "fallback" && quizError && onRetry && <Panel className="mb-4 flex flex-col gap-3 border-yellow-300/30 p-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm text-yellow-100">{quizError}</p><button onClick={onRetry} className="inline-flex items-center justify-center gap-2 rounded-xl border border-yellow-300/40 px-4 py-2 text-sm font-black text-yellow-200 transition hover:bg-yellow-300/10"><RefreshCw className="h-4 w-4" /> Réessayer l'IA</button></Panel>}<Panel className="p-6 md:p-8"><div className="mb-6 flex items-center justify-center gap-3 text-emerald-100"><Timer className="h-8 w-8" /><span className="text-6xl font-black tabular-nums">00:20</span></div><h2 className="text-center text-3xl font-black md:text-5xl">{question.question}</h2><div className="mt-8 grid gap-3 md:grid-cols-2">{question.choices.map((choice) => <button key={choice} onClick={() => setSelected(choice)} className={`rounded-2xl border p-5 text-left text-lg font-black ${selected === choice ? "border-emerald-300 bg-emerald-300 text-slate-950" : "border-white/10 bg-white/5"}`}>{choice}</button>)}</div><button disabled={!selected} onClick={() => setScreen("quiz-reveal")} className="mt-6 w-full rounded-2xl bg-emerald-300 px-6 py-4 font-black text-slate-950 disabled:opacity-40">Verrouiller la réponse</button></Panel></div>
 }
 
 function QuizReveal({ question, selected, award, questionIndex, setQuestionIndex, setSelectedAnswer, setScreen }: { question: QuizQuestion; selected: string; award: () => void; questionIndex: number; setQuestionIndex: (value: number) => void; setSelectedAnswer: (value: string) => void; setScreen: (screen: Screen) => void }) {
@@ -218,16 +350,16 @@ function Ranking({ teams, setScreen }: { teams: Team[]; setScreen: (screen: Scre
   return <div className="mx-auto max-w-5xl"><Title eyebrow="Scores cachés révélés" title="Classement" text="Toutes les cinq questions, la salle découvre qui mène vraiment." /><div className="grid gap-4 md:grid-cols-2">{[...teams].sort((a, b) => b.score - a.score).map((team, index) => <Panel key={team.id} className="p-6"><div className="flex items-center justify-between"><div><p className="text-sm font-black uppercase tracking-[0.25em] text-slate-500">Rang {index + 1}</p><h2 className="mt-2 text-3xl font-black">{team.name}</h2></div><p className="text-5xl font-black text-emerald-300">{team.score}</p></div></Panel>)}</div><button onClick={() => setScreen("games")} className="mt-6 w-full rounded-2xl bg-emerald-300 px-6 py-4 font-black text-slate-950">Retour aux jeux</button></div>
 }
 
-function Rotation({ teams, turn, mode, setMode, setScreen }: { teams: Team[]; turn: number; mode: PartyMode; setMode: (mode: PartyMode) => void; setScreen: (screen: Screen) => void }) {
-  return <div className="mx-auto max-w-4xl"><Title eyebrow="Rotation d'équipe" title={`${teams[turn]?.name} joue maintenant`} text="Choisissez mime ou mot-clé. Un joueur fait deviner, ses coéquipiers répondent avant la fin du temps." /><Panel className="p-6 md:p-8"><div className="grid gap-3 sm:grid-cols-2"><button onClick={() => setMode("mime")} className={`rounded-2xl px-5 py-5 font-black ${mode === "mime" ? "bg-emerald-300 text-slate-950" : "border border-white/15"}`}>Mode mime</button><button onClick={() => setMode("keyword")} className={`rounded-2xl px-5 py-5 font-black ${mode === "keyword" ? "bg-emerald-300 text-slate-950" : "border border-white/15"}`}>Mode mot-clé</button></div><button onClick={() => setScreen(mode)} className="mt-6 w-full rounded-2xl bg-white px-6 py-4 font-black text-slate-950">Commencer le tour</button></Panel></div>
+function Rotation({ teams, turn, mode, setMode, loadMime, loadKeyword }: { teams: Team[]; turn: number; mode: PartyMode; setMode: (mode: PartyMode) => void; loadMime: () => void; loadKeyword: () => void }) {
+  return <div className="mx-auto max-w-4xl"><Title eyebrow="Rotation d'équipe" title={`${teams[turn]?.name} joue maintenant`} text="Choisissez mime ou mot-clé. Le serveur prépare un défi football dynamique avec secours automatique." /><Panel className="p-6 md:p-8"><div className="grid gap-3 sm:grid-cols-2"><button onClick={() => setMode("mime")} className={`rounded-2xl px-5 py-5 font-black ${mode === "mime" ? "bg-emerald-300 text-slate-950" : "border border-white/15"}`}>Mode mime IA</button><button onClick={() => setMode("keyword")} className={`rounded-2xl px-5 py-5 font-black ${mode === "keyword" ? "bg-emerald-300 text-slate-950" : "border border-white/15"}`}>Mode mot-clé IA</button></div><button onClick={mode === "mime" ? loadMime : loadKeyword} className="mt-6 w-full rounded-2xl bg-white px-6 py-4 font-black text-slate-950">Générer le tour</button></Panel></div>
 }
 
-function MimeMode({ teams, turn, target, setTarget, award, nextTurn, setScreen }: { teams: Team[]; turn: number; target: string; setTarget: (target: string) => void; award: () => void; nextTurn: () => void; setScreen: (screen: Screen) => void }) {
-  return <div className="mx-auto max-w-5xl"><Title eyebrow="Mode mime" title="Interdit de parler. Gestes seulement." text={`${teams[turn]?.name}: imitez le joueur. Les coéquipiers doivent deviner avant la fin du temps.`} /><Panel className="p-8 text-center md:p-12"><Dumbbell className="mx-auto mb-6 h-16 w-16 text-emerald-300" /><p className="text-xs font-black uppercase tracking-[0.3em] text-slate-500">Le joueur mimeur voit</p><h2 className="mt-3 text-5xl font-black">{target}</h2><div className="mt-8 text-8xl font-black tabular-nums text-emerald-300">00:45</div><div className="mt-8 grid gap-3 sm:grid-cols-3"><button onClick={() => setTarget(mimePlayers[Math.floor(Math.random() * mimePlayers.length)])} className="rounded-2xl border border-white/15 px-5 py-4 font-black">Nouveau joueur</button><button onClick={() => { award(); nextTurn(); setScreen("team-score") }} className="rounded-2xl bg-emerald-300 px-5 py-4 font-black text-slate-950">Correct</button><button onClick={() => { nextTurn(); setScreen("team-score") }} className="rounded-2xl border border-red-300/30 px-5 py-4 font-black">Temps écoulé</button></div></Panel></div>
+function MimeMode({ teams, turn, challenge, source, loadMime, award, nextTurn, setScreen, mimeError }: { teams: Team[]; turn: number; challenge: MimeChallenge; source: "ai" | "fallback"; loadMime: () => void; award: () => void; nextTurn: () => void; setScreen: (screen: Screen) => void; mimeError?: string | null }) {
+  return <div className="mx-auto max-w-5xl"><Title eyebrow={`Mode mime · ${source === "ai" ? "généré par IA" : "secours local"}`} title="Interdit de parler. Gestes seulement." text={`${teams[turn]?.name}: imitez le joueur. Les coéquipiers doivent deviner avant la fin du temps.`} />{mimeError && <Panel className="mb-4 border-yellow-300/30 p-4 text-sm text-yellow-100">{mimeError}</Panel>}<Panel className="p-8 text-center md:p-12"><Dumbbell className="mx-auto mb-6 h-16 w-16 text-emerald-300" /><p className="text-xs font-black uppercase tracking-[0.3em] text-slate-500">Le joueur mimeur voit</p><h2 className="mt-3 text-5xl font-black">{challenge.player}</h2><div className="mt-6 grid gap-2 sm:grid-cols-2">{challenge.mimeHints.map((hint) => <div key={hint} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-slate-300">{hint}</div>)}</div><div className="mt-8 text-8xl font-black tabular-nums text-emerald-300">00:45</div><div className="mt-8 grid gap-3 sm:grid-cols-3"><button onClick={loadMime} className="rounded-2xl border border-white/15 px-5 py-4 font-black">Nouveau joueur IA</button><button onClick={() => { award(); nextTurn(); setScreen("team-score") }} className="rounded-2xl bg-emerald-300 px-5 py-4 font-black text-slate-950">Correct</button><button onClick={() => { nextTurn(); setScreen("team-score") }} className="rounded-2xl border border-red-300/30 px-5 py-4 font-black">Temps écoulé</button></div></Panel></div>
 }
 
-function KeywordMode({ teams, turn, card, nextCard, award, nextTurn, setScreen }: { teams: Team[]; turn: number; card: { clue: string; answer: string }; nextCard: () => void; award: () => void; nextTurn: () => void; setScreen: (screen: Screen) => void }) {
-  return <div className="mx-auto max-w-5xl"><Title eyebrow="Mode mot-clé" title="Un indice. Un but." text={`${teams[turn]?.name}: donnez l'indice et laissez vos coéquipiers deviner le footballeur.`} /><Panel className="p-8 text-center md:p-12"><KeyRound className="mx-auto mb-6 h-16 w-16 text-emerald-300" /><p className="text-xs font-black uppercase tracking-[0.3em] text-slate-500">Mot-clé</p><h2 className="mt-3 text-7xl font-black text-emerald-200">{card.clue}</h2><p className="mt-6 text-slate-400">Réponse attendue cachée aux coéquipiers : {card.answer}</p><div className="mt-8 grid gap-3 sm:grid-cols-3"><button onClick={nextCard} className="rounded-2xl border border-white/15 px-5 py-4 font-black">Nouvelle carte</button><button onClick={() => { award(); nextTurn(); setScreen("team-score") }} className="rounded-2xl bg-emerald-300 px-5 py-4 font-black text-slate-950">Correct</button><button onClick={() => { nextTurn(); setScreen("team-score") }} className="rounded-2xl border border-red-300/30 px-5 py-4 font-black">Raté</button></div></Panel></div>
+function KeywordMode({ teams, turn, challenge, source, loadKeyword, award, nextTurn, setScreen, keywordError }: { teams: Team[]; turn: number; challenge: KeywordChallenge; source: "ai" | "fallback"; loadKeyword: () => void; award: () => void; nextTurn: () => void; setScreen: (screen: Screen) => void; keywordError?: string | null }) {
+  return <div className="mx-auto max-w-5xl"><Title eyebrow={`Mode mot-clé · ${source === "ai" ? "généré par IA" : "secours local"}`} title="Des indices. Un but." text={`${teams[turn]?.name}: donnez les indices et laissez vos coéquipiers deviner le footballeur.`} />{keywordError && <Panel className="mb-4 border-yellow-300/30 p-4 text-sm text-yellow-100">{keywordError}</Panel>}<Panel className="p-8 text-center md:p-12"><KeyRound className="mx-auto mb-6 h-16 w-16 text-emerald-300" /><p className="text-xs font-black uppercase tracking-[0.3em] text-slate-500">Mots-clés</p><div className="mt-5 flex flex-wrap justify-center gap-3">{challenge.keywords.map((keyword) => <span key={keyword} className="rounded-full border border-emerald-300/30 bg-emerald-300/10 px-5 py-3 text-2xl font-black text-emerald-100">{keyword}</span>)}</div><p className="mt-6 text-slate-400">Réponse attendue cachée aux coéquipiers : {challenge.answer}</p><div className="mt-8 grid gap-3 sm:grid-cols-3"><button onClick={loadKeyword} className="rounded-2xl border border-white/15 px-5 py-4 font-black">Nouvelle carte IA</button><button onClick={() => { award(); nextTurn(); setScreen("team-score") }} className="rounded-2xl bg-emerald-300 px-5 py-4 font-black text-slate-950">Correct</button><button onClick={() => { nextTurn(); setScreen("team-score") }} className="rounded-2xl border border-red-300/30 px-5 py-4 font-black">Raté</button></div></Panel></div>
 }
 
 function TeamScore({ teams, setScreen }: { teams: Team[]; setScreen: (screen: Screen) => void }) {
