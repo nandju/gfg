@@ -32,20 +32,21 @@ export async function generateGoalQuiz({ category, difficulty, count = 5 }: Gene
         schema: goalQuizPackSchema,
         temperature: 0.8,
         maxRetries: 1,
-        system: "You are a football quiz engine. Generate valid JSON only. Never include markdown, comments, or explanations.",
-        prompt: `Generate ${count} realistic football quiz questions for a local multiplayer mobile game named GOAL!!!.
+        system: "Tu es un moteur de quiz football en français. Génère uniquement du JSON valide. N'inclus jamais de markdown, de commentaires ou d'explications.",
+        prompt: `Génère ${count} questions de quiz football réalistes en français pour un jeu mobile multijoueur local nommé GOAL!!!.
 
 Category: ${category}
 Difficulty: ${difficulty}
 
-Rules:
-- Return only structured data matching the schema.
-- Avoid duplicate questions and duplicate correct answers when possible.
-- Every question must have exactly four choices.
-- The answer must exactly match one of the choices.
-- Use varied football knowledge.
-- For International Competitions, include themes like World Cup, Champions League, AFCON, Euro, Copa America, Ballon d'Or, and historical records.
-- Keep questions fun, clear, and suitable for quick party gameplay.`
+Règles:
+- Retourne uniquement des données structurées correspondant au schéma.
+- Les champs question, choices et answer doivent être rédigés en français.
+- Évite les questions dupliquées et les réponses correctes dupliquées quand c'est possible.
+- Chaque question doit avoir exactement quatre choix.
+- La réponse doit correspondre exactement à l'un des choix.
+- Utilise une culture football variée.
+- Pour International Competitions, inclus des thèmes comme Coupe du monde, Ligue des Champions, CAN, Euro, Copa America, Ballon d'Or et records historiques.
+- Garde des questions claires, fun et adaptées à un jeu de groupe rapide.`
       })
 
       const sanitized = sanitizeGoalQuizPack(result.object)
