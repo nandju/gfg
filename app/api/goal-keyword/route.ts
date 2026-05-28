@@ -12,14 +12,14 @@ export async function POST(request: Request) {
     const parsed = goalKeywordRequestSchema.safeParse(body)
 
     if (!parsed.success) {
-      console.log("GOAL KEYWORD API ZOD ERROR:", parsed.error.flatten())
+      console.error("GOAL KEYWORD API ZOD ERROR:", parsed.error.flatten())
       return NextResponse.json({ source: "fallback", challenge: getFallbackGoalKeyword("medium") })
     }
 
     const keyword = await generateGoalKeyword(parsed.data)
     return NextResponse.json(keyword)
   } catch (error) {
-    console.log("GOAL KEYWORD ERROR:", error)
+    console.error("GOAL KEYWORD ERROR:", error)
     return NextResponse.json({ source: "fallback", challenge: getFallbackGoalKeyword("medium") })
   }
 }

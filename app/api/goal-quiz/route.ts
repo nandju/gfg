@@ -12,21 +12,15 @@ export async function POST(request: Request) {
     const parsed = goalQuizRequestSchema.safeParse(body)
 
     if (!parsed.success) {
-      console.log("GOAL QUIZ API ZOD ERROR:", parsed.error.flatten())
+      console.error("GOAL QUIZ API ZOD ERROR:", parsed.error.flatten())
       const fallback = getFallbackGoalQuiz("International Competitions", "medium", 5)
       return NextResponse.json({ source: "fallback", ...fallback })
     }
 
-    console.log("GOAL QUIZ API POST:", {
-      category: parsed.data.category,
-      difficulty: parsed.data.difficulty,
-      count: parsed.data.count
-    })
-
     const quiz = await generateGoalQuiz(parsed.data)
     return NextResponse.json(quiz)
   } catch (error) {
-    console.log("GOAL QUIZ API ERROR:", error)
+    console.error("GOAL QUIZ ERROR:", error)
     const fallback = getFallbackGoalQuiz("International Competitions", "medium", 5)
     return NextResponse.json({ source: "fallback", ...fallback })
   }

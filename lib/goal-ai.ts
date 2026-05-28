@@ -193,7 +193,7 @@ export async function generateGoalQuiz({ category, difficulty, count = 5 }: Gene
         model: groq(modelName),
         schema: goalQuizPackSchema,
         temperature,
-        maxRetries: 1,
+        maxRetries: 2,
         system,
         prompt
       })
@@ -248,7 +248,7 @@ export async function generateGoalMime({ difficulty = "medium" }: GenerateGoalMi
         model: groq(modelName),
         schema: goalMimeChallengeSchema,
         temperature,
-        maxRetries: 1,
+        maxRetries: 2,
         system,
         prompt
       })
@@ -294,7 +294,7 @@ export async function generateGoalKeyword({ difficulty = "medium" }: GenerateGoa
         model: groq(modelName),
         schema: goalKeywordChallengeSchema,
         temperature,
-        maxRetries: 1,
+        maxRetries: 2,
         system,
         prompt
       })

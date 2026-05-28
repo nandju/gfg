@@ -12,14 +12,14 @@ export async function POST(request: Request) {
     const parsed = goalMimeRequestSchema.safeParse(body)
 
     if (!parsed.success) {
-      console.log("GOAL MIME API ZOD ERROR:", parsed.error.flatten())
+      console.error("GOAL MIME API ZOD ERROR:", parsed.error.flatten())
       return NextResponse.json({ source: "fallback", challenge: getFallbackGoalMime("medium") })
     }
 
     const mime = await generateGoalMime(parsed.data)
     return NextResponse.json(mime)
   } catch (error) {
-    console.log("GOAL MIME ERROR:", error)
+    console.error("GOAL MIME ERROR:", error)
     return NextResponse.json({ source: "fallback", challenge: getFallbackGoalMime("medium") })
   }
 }

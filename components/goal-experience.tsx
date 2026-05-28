@@ -1,9 +1,10 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { ArrowLeft, BadgeCheck, BarChart3, Bot, Check, CircleHelp, Dumbbell, History, KeyRound, Lock, LogIn, Medal, Play, Plus, RefreshCw, ScanLine, Shield, Timer, Trophy, Users, Volleyball } from "lucide-react"
+import { useGoalRoom } from "@/hooks/use-goal-room"
 
 type Screen = "loader" | "menu" | "lobby" | "create" | "join" | "teams" | "games" | "quiz-select" | "quiz-loading" | "quiz-question" | "quiz-reveal" | "quiz-ranking" | "mime-loading" | "keyword-loading" | "mime" | "keyword" | "rotation" | "team-score" | "history" | "results" | "victory" | "simulation"
 type QuizCategory = "Teams" | "Players" | "International Competitions"
@@ -217,6 +218,70 @@ export function GoalExperience() {
     return () => window.clearInterval(interval)
   }, [screen])
 
+  // ── Realtime multiplayer (Supabase, host-authoritative) ───────────────────
+  const goalRoom = useGoalRoom()
+  const roomCreationRef = useRef<"idle" | "creating" | "done">("idle")
+  const lastPushedRef = useRef<string>("")
+  const lastReceivedRef = useRef<string>("")
+
+  useEffect(() => {
+    if (!goalRoom.enabled) return
+    if (screen !== "create") return
+    if (roomCreationRef.current !== "idle") return
+    if (goalRoom.room) return
+    roomCreationRef.current = "creating"
+    goalRoom.createRoom({ teams: initialTeams }).then((room) => {
+      if (room) setCode(room.code)
+      roomCreationRef.current = "done"
+    }).catch(() => { roomCreationRef.current = "idle" })
+  }, [screen, goalRoom])
+
+  const joinScreenSetter = useCallback((next: Screen) => {
+    if (next !== "teams" || !goalRoom.enabled || goalRoom.room) {
+      setScreen(next)
+      return
+    }
+    if (!joinCode.trim()) { setScreen(next); return }
+    goalRoom.joinRoom(joinCode).then((room) => {
+      if (room) setCode(room.code)
+      setScreen(next)
+    }).catch(() => setScreen(next))
+  }, [goalRoom, joinCode])
+
+  useEffect(() => {
+    if (!goalRoom.enabled || !goalRoom.room || !goalRoom.isHost) return
+    const snapshot = JSON.stringify({ screen, teams, turn, partyMode, category, difficulty, questions, questionIndex, selectedAnswer, mimeChallenge, keywordChallenge, quizSource, mimeSource, keywordSource })
+    if (snapshot === lastPushedRef.current) return
+    lastPushedRef.current = snapshot
+    goalRoom.pushState({
+      current_screen: screen,
+      game_state: { teams, turn, partyMode, category, difficulty, questions, questionIndex, selectedAnswer, mimeChallenge, keywordChallenge, quizSource, mimeSource, keywordSource }
+    })
+  }, [goalRoom, screen, teams, turn, partyMode, category, difficulty, questions, questionIndex, selectedAnswer, mimeChallenge, keywordChallenge, quizSource, mimeSource, keywordSource])
+
+  useEffect(() => {
+    if (!goalRoom.enabled || !goalRoom.room || goalRoom.isHost) return
+    const remoteScreen = goalRoom.room.current_screen as Screen | null
+    const remoteState = goalRoom.room.game_state as Record<string, unknown>
+    const snapshot = JSON.stringify({ remoteScreen, remoteState })
+    if (snapshot === lastReceivedRef.current) return
+    lastReceivedRef.current = snapshot
+    if (remoteScreen) setScreen(remoteScreen)
+    if (Array.isArray(remoteState.teams)) setTeams(remoteState.teams as Team[])
+    if (typeof remoteState.turn === "number") setTurn(remoteState.turn)
+    if (remoteState.partyMode === "mime" || remoteState.partyMode === "keyword") setPartyMode(remoteState.partyMode)
+    if (remoteState.category) setCategory(remoteState.category as QuizCategory)
+    if (remoteState.difficulty) setDifficulty(remoteState.difficulty as Difficulty)
+    if (Array.isArray(remoteState.questions)) setQuestions(remoteState.questions as QuizQuestion[])
+    if (typeof remoteState.questionIndex === "number") setQuestionIndex(remoteState.questionIndex)
+    if (typeof remoteState.selectedAnswer === "string") setSelectedAnswer(remoteState.selectedAnswer)
+    if (remoteState.mimeChallenge) setMimeChallenge(remoteState.mimeChallenge as MimeChallenge)
+    if (remoteState.keywordChallenge) setKeywordChallenge(remoteState.keywordChallenge as KeywordChallenge)
+    if (remoteState.quizSource === "ai" || remoteState.quizSource === "fallback") setQuizSource(remoteState.quizSource)
+    if (remoteState.mimeSource === "ai" || remoteState.mimeSource === "fallback") setMimeSource(remoteState.mimeSource)
+    if (remoteState.keywordSource === "ai" || remoteState.keywordSource === "fallback") setKeywordSource(remoteState.keywordSource)
+  }, [goalRoom])
+
   const award = (teamId = teams[turn]?.id, amount = 3) => setTeams((current) => current.map((team) => team.id === teamId ? { ...team, score: team.score + amount } : team))
   const nextTurn = () => setTurn((current) => (current + 1) % teams.length)
   const loadQuiz = async () => {
@@ -277,7 +342,7 @@ export function GoalExperience() {
     {screen === "menu" && <Menu setScreen={setScreen} />}
     {screen === "lobby" && <Lobby setScreen={setScreen} />}
     {screen === "create" && <CreateRoom code={code} setCode={setCode} setScreen={setScreen} />}
-    {screen === "join" && <JoinRoom joinCode={joinCode} setJoinCode={setJoinCode} setScreen={setScreen} />}
+    {screen === "join" && <JoinRoom joinCode={joinCode} setJoinCode={setJoinCode} setScreen={joinScreenSetter} />}
     {screen === "teams" && <Teams teams={teams} setScreen={setScreen} />}
     {screen === "games" && <GameSelection setScreen={setScreen} />}
     {screen === "quiz-select" && <QuizSelect category={category} setCategory={setCategory} difficulty={difficulty} setDifficulty={setDifficulty} loadQuiz={loadQuiz} />}
