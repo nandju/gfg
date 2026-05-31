@@ -187,7 +187,6 @@ function Title({ eyebrow, title, text }: { eyebrow: string; title: string; text:
 
 export function GoalExperience() {
   const [screen, setScreen] = useState<Screen>("loader")
-  const [progress, setProgress] = useState(0)
   const [code, setCode] = useState(generateCode)
   const [joinCode, setJoinCode] = useState("")
   const [teams, setTeams] = useState<Team[]>(initialTeams)
@@ -210,12 +209,19 @@ export function GoalExperience() {
 
   useEffect(() => {
     if (screen !== "loader") return
-    const interval = window.setInterval(() => setProgress((current) => {
-      const next = Math.min(current + 8, 100)
-      if (next === 100) window.setTimeout(() => setScreen("menu"), 250)
-      return next
-    }), 90)
-    return () => window.clearInterval(interval)
+    console.log("[LOADER] Asset loaded")
+    const visualDelay = new Promise<"visual">((resolve) => window.setTimeout(() => resolve("visual"), 3200))
+    const failsafe = new Promise<"timeout">((resolve) => window.setTimeout(() => resolve("timeout"), 4000))
+    let mounted = true
+    Promise.race([visualDelay, failsafe]).then((result) => {
+      if (!mounted) return
+      if (result === "timeout") console.log("[LOADER] Timeout reached")
+      console.log("[LOADER] Entering application")
+      setScreen("menu")
+    })
+    return () => {
+      mounted = false
+    }
   }, [screen])
 
   // ── Realtime multiplayer (Supabase, host-authoritative) ───────────────────
@@ -336,7 +342,7 @@ export function GoalExperience() {
     setScreen("keyword")
   }
 
-  if (screen === "loader") return <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white"><div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(34,197,94,.28),transparent_45%)]" /><div className="relative z-10 w-full max-w-sm text-center"><div className="relative mx-auto mb-7 h-28 w-28 overflow-hidden rounded-[2rem] border border-emerald-300/60 shadow-2xl shadow-emerald-950/60"><Image src="/goal!!!/cover.png" alt="GOAL!!!" fill priority className="object-cover" /></div><p className="text-xs font-black uppercase tracking-[0.45em] text-emerald-300">Coup d'envoi en chargement</p><h1 className="mt-3 text-6xl font-black">GOAL!!!</h1><div className="mt-8 h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-lime-300 to-white transition-all duration-200" style={{ width: `${progress}%` }} /></div><p className="mt-4 text-sm text-slate-400">Les projecteurs du stade s'allument... {progress}%</p></div></main>
+  if (screen === "loader") return <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white"><div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(34,197,94,.28),transparent_45%)]" /><div className="relative z-10 w-full max-w-sm text-center"><div className="relative mx-auto mb-7 h-28 w-28 overflow-hidden rounded-[2rem] border border-emerald-300/60 shadow-2xl shadow-emerald-950/60"><Image src="/goal!!!/cover.png" alt="GOAL!!!" fill priority className="object-cover" /></div><p className="text-xs font-black uppercase tracking-[0.45em] text-emerald-300">Coup d'envoi en chargement</p><h1 className="mt-3 text-6xl font-black">GOAL!!!</h1><div className="mt-8 flex items-center justify-center gap-3 text-xs font-black uppercase tracking-[0.35em] text-slate-400"><span className="h-2 w-2 animate-pulse rounded-full bg-emerald-300" />Préparation<span className="h-2 w-2 animate-pulse rounded-full bg-lime-200" /></div></div></main>
 
   return <Shell screen={screen} setScreen={setScreen}>
     {screen === "menu" && <Menu setScreen={setScreen} />}

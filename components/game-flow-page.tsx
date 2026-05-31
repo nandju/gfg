@@ -43,26 +43,25 @@ function QrPattern({ code }: { code: string }) {
 
 export function GameFlowPage({ game, cards }: GameFlowPageProps) {
   const [step, setStep] = useState<Step>("loading")
-  const [progress, setProgress] = useState(0)
   const [lobbyCode, setLobbyCode] = useState(generateLobbyCode)
   const [timeLeft, setTimeLeft] = useState(30)
   const [joinCode, setJoinCode] = useState("")
 
   useEffect(() => {
     if (step !== "loading") return
-
-    const interval = window.setInterval(() => {
-      setProgress((current) => {
-        const next = Math.min(current + 4, 100)
-        if (next === 100) {
-          window.clearInterval(interval)
-          window.setTimeout(() => setStep("menu"), 350)
-        }
-        return next
-      })
-    }, 90)
-
-    return () => window.clearInterval(interval)
+    console.log("[LOADER] Asset loaded")
+    const visualDelay = new Promise<"visual">((resolve) => window.setTimeout(() => resolve("visual"), 3200))
+    const failsafe = new Promise<"timeout">((resolve) => window.setTimeout(() => resolve("timeout"), 4000))
+    let mounted = true
+    Promise.race([visualDelay, failsafe]).then((result) => {
+      if (!mounted) return
+      if (result === "timeout") console.log("[LOADER] Timeout reached")
+      console.log("[LOADER] Entering application")
+      setStep("menu")
+    })
+    return () => {
+      mounted = false
+    }
   }, [step])
 
   useEffect(() => {
@@ -88,10 +87,7 @@ export function GameFlowPage({ game, cards }: GameFlowPageProps) {
             <Image src={game.coverImage} alt={game.title} fill priority className="object-cover" />
           </div>
           <h1 className="mb-6 text-4xl font-black tracking-tight md:text-5xl">{game.title}</h1>
-          <div className="h-3 overflow-hidden rounded-full bg-white/10">
-            <div className="h-full rounded-full bg-primary transition-all duration-200" style={{ width: `${progress}%` }} />
-          </div>
-          <p className="mt-4 text-sm font-medium text-muted-foreground">Chargement... {progress}%</p>
+          <div className="mt-8 flex items-center justify-center gap-3 text-xs font-black uppercase tracking-[0.35em] text-muted-foreground"><span className="h-2 w-2 animate-pulse rounded-full bg-primary" />Préparation<span className="h-2 w-2 animate-pulse rounded-full bg-accent" /></div>
         </div>
       </main>
     )

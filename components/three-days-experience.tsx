@@ -136,7 +136,6 @@ function Blackout({ text, onClose }: { text: string | null; onClose: () => void 
 export function ThreeDaysExperience() {
   const [screen, setScreen] = useState<Screen>("loader")
   const [role, setRole] = useState<Role>("player")
-  const [progress, setProgress] = useState(0)
   const [code, setCode] = useState(generateCode)
   const [joinCode, setJoinCode] = useState("")
   const [round, setRound] = useState(1)
@@ -151,21 +150,15 @@ export function ThreeDaysExperience() {
 
   useEffect(() => {
     if (screen !== "loader") return
-    const assets = ["/threedays/cover.png", "/threedays/mobile7.png", "/threedays/desktop.png"]
-    let loaded = 0
+    console.log("[LOADER] Asset loaded")
+    const visualDelay = new Promise<"visual">((resolve) => window.setTimeout(() => resolve("visual"), 3200))
+    const failsafe = new Promise<"timeout">((resolve) => window.setTimeout(() => resolve("timeout"), 4000))
     let mounted = true
-    const mark = () => {
-      loaded += 1
+    Promise.race([visualDelay, failsafe]).then((result) => {
       if (!mounted) return
-      const next = Math.round((loaded / assets.length) * 100)
-      setProgress(next)
-      if (loaded === assets.length) requestAnimationFrame(() => requestAnimationFrame(() => setScreen("menu")))
-    }
-    assets.forEach((src) => {
-      const image = new window.Image()
-      image.onload = mark
-      image.onerror = mark
-      image.src = src
+      if (result === "timeout") console.log("[LOADER] Timeout reached")
+      console.log("[LOADER] Entering application")
+      setScreen("menu")
     })
     return () => {
       mounted = false
@@ -180,7 +173,7 @@ export function ThreeDaysExperience() {
   const eliminate = (name: string) => setPlayers((current) => current.map((player) => player.name === name ? { ...player, status: "eliminated" } : player))
 
   if (screen === "loader") {
-    return <main className="flex min-h-screen items-center justify-center overflow-hidden bg-stone-950 px-6 text-stone-100"><div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(146,64,14,.32),transparent_45%)]" /><div className="relative z-10 w-full max-w-sm text-center"><div className="relative mx-auto mb-7 h-28 w-28 overflow-hidden rounded-[2rem] border border-amber-200/40 shadow-2xl shadow-amber-950/60"><Image src="/threedays/cover.png" alt="THREE DAYS" fill priority className="object-cover" /></div><p className="text-xs font-black uppercase tracking-[0.45em] text-amber-200">Souhait détecté</p><h1 className="mt-3 text-5xl font-black">THREE DAYS</h1><div className="mt-8 h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-gradient-to-r from-amber-900 via-amber-200 to-stone-100 transition-all duration-300" style={{ width: `${progress}%` }} /></div><p className="mt-4 text-sm text-stone-400">Préparation de l'observateur silencieux... {progress}%</p></div></main>
+    return <main className="flex min-h-screen items-center justify-center overflow-hidden bg-stone-950 px-6 text-stone-100"><div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(146,64,14,.32),transparent_45%)]" /><div className="relative z-10 w-full max-w-sm text-center"><div className="relative mx-auto mb-7 h-28 w-28 overflow-hidden rounded-[2rem] border border-amber-200/40 shadow-2xl shadow-amber-950/60"><Image src="/threedays/cover.png" alt="THREE DAYS" fill priority className="object-cover" /></div><p className="text-xs font-black uppercase tracking-[0.45em] text-amber-200">Souhait détecté</p><h1 className="mt-3 text-5xl font-black">THREE DAYS</h1><div className="mt-8 flex items-center justify-center gap-3 text-xs font-black uppercase tracking-[0.35em] text-stone-400"><span className="h-2 w-2 animate-pulse rounded-full bg-amber-200" />Préparation<span className="h-2 w-2 animate-pulse rounded-full bg-stone-100" /></div></div></main>
   }
 
   return (

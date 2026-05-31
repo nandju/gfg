@@ -19,12 +19,11 @@ interface Particle {
 }
 
 interface LoadingScreenProps {
-  progress: number
   isExiting: boolean
   onExited?: () => void
 }
 
-export function LoadingScreen({ progress, isExiting, onExited }: LoadingScreenProps) {
+export function LoadingScreen({ isExiting, onExited }: LoadingScreenProps) {
   const [currentTip, setCurrentTip] = useState(0)
   const [fadeIn, setFadeIn] = useState(true)
   const [particles, setParticles] = useState<Particle[]>([])
@@ -81,13 +80,15 @@ export function LoadingScreen({ progress, isExiting, onExited }: LoadingScreenPr
       <div className="relative z-10 flex flex-col items-center gap-8">
         {/* Logo and Title */}
         <div className="flex items-center gap-4 animate-in fade-in zoom-in duration-700">
-          <div className="relative w-20 h-20 md:w-24 md:h-24 rounded-full overflow-hidden border-4 border-primary shadow-lg shadow-primary/30">
+          <div className="relative flex w-20 h-20 md:w-24 md:h-24 items-center justify-center overflow-hidden rounded-full border-4 border-primary bg-primary/10 text-2xl md:text-3xl font-black text-primary shadow-lg shadow-primary/30 animate-pulse">
+            <span>GFG</span>
             <Image
               src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo-1D4w14VdJaweQDPMBlcaNX8jygy0Yp.jpg"
               alt="GRACE's Family Games Logo"
               fill
               className="object-cover"
-              priority
+              priority={false}
+              unoptimized
             />
           </div>
           <div className="flex flex-col">
@@ -114,17 +115,10 @@ export function LoadingScreen({ progress, isExiting, onExited }: LoadingScreenPr
           </p>
         </div>
 
-        {/* Progress bar */}
-        <div className="w-64 md:w-80">
-          <div className="h-2 bg-secondary rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-primary to-accent rounded-full transition-all duration-200 ease-out"
-              style={{ width: `${Math.min(Math.round(progress), 100)}%` }}
-            />
-          </div>
-          <p className="text-center text-sm text-muted-foreground mt-2">
-            Chargement... {Math.min(Math.round(progress), 100)}%
-          </p>
+        <div className="flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.35em] text-muted-foreground">
+          <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+          Préparation
+          <span className="h-2 w-2 rounded-full bg-accent animate-pulse" />
         </div>
       </div>
 

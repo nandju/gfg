@@ -130,21 +130,15 @@ export function CageWildExperience() {
 
   useEffect(() => {
     if (screen !== "loader") return
-    const assets = ["/cagewild/cover.png", "/cagewild/mobile4.png", "/cagewild/desktop.png", "/cagewild/Gemini_Generated_Image_om1y20om1y20om1y.png"]
-    let loaded = 0
+    console.log("[LOADER] Asset loaded")
+    const visualDelay = new Promise<"visual">((resolve) => window.setTimeout(() => resolve("visual"), 3200))
+    const failsafe = new Promise<"timeout">((resolve) => window.setTimeout(() => resolve("timeout"), 4000))
     let mounted = true
-    const mark = () => {
-      loaded += 1
+    Promise.race([visualDelay, failsafe]).then((result) => {
       if (!mounted) return
-      const next = Math.round((loaded / assets.length) * 100)
-      setProgress(next)
-      if (loaded === assets.length) requestAnimationFrame(() => requestAnimationFrame(() => setScreen("menu")))
-    }
-    assets.forEach((src) => {
-      const image = new window.Image()
-      image.onload = mark
-      image.onerror = mark
-      image.src = src
+      if (result === "timeout") console.log("[LOADER] Timeout reached")
+      console.log("[LOADER] Entering application")
+      setScreen("menu")
     })
     return () => {
       mounted = false
@@ -157,7 +151,7 @@ export function CageWildExperience() {
   const removePlayer = (name: string) => setPlayers((current) => current.map((player) => player.name === name || player.partner === name ? { ...player, status: "eliminated" } : player))
 
   if (screen === "loader") {
-    return <main className="flex min-h-screen items-center justify-center overflow-hidden bg-zinc-950 px-6 text-zinc-100"><div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(127,29,29,.35),transparent_45%)]" /><div className="relative z-10 w-full max-w-sm text-center"><div className="relative mx-auto mb-7 h-28 w-28 overflow-hidden rounded-[2rem] border border-red-400/50 shadow-2xl shadow-red-950/60"><Image src="/cagewild/cover.png" alt="Cage Wild" fill priority className="object-cover" /></div><p className="text-xs font-black uppercase tracking-[0.45em] text-red-300">Lien psychologique actif</p><h1 className="mt-3 text-5xl font-black">CAGE WILD</h1><div className="mt-8 h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-gradient-to-r from-red-800 via-red-400 to-zinc-100 transition-all duration-300" style={{ width: `${progress}%` }} /></div><p className="mt-4 text-sm text-zinc-400">Chargement du système de pression local... {progress}%</p></div></main>
+    return <main className="flex min-h-screen items-center justify-center overflow-hidden bg-zinc-950 px-6 text-zinc-100"><div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(127,29,29,.35),transparent_45%)]" /><div className="relative z-10 w-full max-w-sm text-center"><div className="relative mx-auto mb-7 h-28 w-28 overflow-hidden rounded-[2rem] border border-red-400/50 shadow-2xl shadow-red-950/60"><Image src="/cagewild/cover.png" alt="Cage Wild" fill priority className="object-cover" /></div><p className="text-xs font-black uppercase tracking-[0.45em] text-red-300">Lien psychologique actif</p><h1 className="mt-3 text-5xl font-black">CAGE WILD</h1><div className="mt-8 flex items-center justify-center gap-3 text-xs font-black uppercase tracking-[0.35em] text-zinc-400"><span className="h-2 w-2 animate-pulse rounded-full bg-red-400" />Préparation<span className="h-2 w-2 animate-pulse rounded-full bg-zinc-100" /></div></div></main>
   }
 
   return (
