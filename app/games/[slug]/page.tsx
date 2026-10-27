@@ -39,7 +39,7 @@ export default async function GameDetailsPage({ params }: { params: Promise<{ sl
         </Link>
         <div className="flex items-center gap-3">
           <div className="relative h-9 w-9 overflow-hidden rounded-xl border border-white/20">
-            <Image src="/icon.svg" alt="GFG" fill className="object-cover" />
+            <Image src="/logo.png" alt="GRACE's Family Games" fill className="object-cover" />
           </div>
           <p className="text-sm font-black">GFG</p>
         </div>
