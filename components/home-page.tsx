@@ -92,7 +92,7 @@ export function HomePage() {
       <header className="relative z-20 flex items-center justify-between px-4 py-4 md:px-8">
         <Link href="/" className="flex items-center gap-3">
           <div className="relative h-10 w-10 overflow-hidden rounded-xl border border-white/20">
-            <Image src="/icon.svg" alt="GFG" fill className="object-cover" />
+            <Image src="/logo.png" alt="GRACE's Family Games" fill className="object-cover" />
           </div>
           <div className="leading-tight">
             <p className="text-sm font-black tracking-tight">GRACE&apos;s</p>
