@@ -1,11 +1,14 @@
 ﻿"use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { AlertTriangle, ArrowLeft, BadgeDollarSign, BarChart3, Check, ChevronRight, Clock, Crown, Dice5, Eye, Fingerprint, Gauge, History, Lock, LogIn, LucideIcon, MessageSquareWarning, QrCode, Radio, RefreshCw, ScanLine, ShieldAlert, Skull, Sparkles, Timer, Trophy, Users, Vote, X, Zap } from "lucide-react"
+import { AlertTriangle, ArrowLeft, BadgeDollarSign, BarChart3, ChevronRight, Clock, Crown, Dice5, Eye, Fingerprint, Gauge, History, Lock, LucideIcon, MessageSquareWarning, ShieldAlert, Skull, Sparkles, Trophy, Users, Vote, X, Zap } from "lucide-react"
+import { useGameRoom } from "@/hooks/use-game-room"
+import { RoomFlow } from "@/components/room-flow"
+import { GameLoader } from "@/components/game-loader"
 
-type Screen = "loader" | "menu" | "lobby" | "create" | "join" | "waiting" | "duos" | "games" | "poker" | "rps" | "signal" | "ranking" | "debate" | "vote" | "vote-correct" | "vote-incorrect" | "recompose" | "analysis" | "traitor" | "history" | "profiles" | "elimination" | "locked"
+type Screen = "loader" | "menu" | "lobby" | "create" | "join" | "waiting" | "room" | "duos" | "games" | "poker" | "rps" | "signal" | "ranking" | "debate" | "vote" | "vote-correct" | "vote-incorrect" | "recompose" | "analysis" | "traitor" | "history" | "profiles" | "elimination" | "locked"
 type PlayerStatus = "active" | "unstable" | "suspect" | "eliminated"
 type VoteTone = "Silencieux" | "Agressif" | "Suspect" | "Défensif"
 
@@ -66,17 +69,6 @@ const trials = [
   { id: "signal", title: "LE SIGNAL", status: "Simulation jouable", locked: false, text: "Synchronisation sous pression." }
 ]
 
-function generateCode() {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ"
-  return `CW-${alphabet[Math.floor(Math.random() * alphabet.length)]}${Math.floor(100 + Math.random() * 900)}`
-}
-
-function CageQr({ code }: { code: string }) {
-  const cells = useMemo(() => Array.from({ length: 100 }, (_, index) => (code.charCodeAt(index % code.length) + index * 11) % 4 !== 0), [code])
-
-  return <div className="grid h-52 w-52 grid-cols-10 gap-1 rounded-[2rem] bg-zinc-100 p-4 shadow-2xl shadow-red-950/40 md:h-64 md:w-64">{cells.map((active, index) => <div key={index} className={`rounded-[2px] ${active ? "bg-zinc-950" : "bg-zinc-100"}`} />)}</div>
-}
-
 function Shell({ children, screen, setScreen }: { children: React.ReactNode; screen: Screen; setScreen: (screen: Screen) => void }) {
   return (
     <main className="relative min-h-screen overflow-hidden bg-zinc-950 text-zinc-100">
@@ -87,7 +79,7 @@ function Shell({ children, screen, setScreen }: { children: React.ReactNode; scr
         <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(255,255,255,.06)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.06)_1px,transparent_1px)] [background-size:42px_42px]" />
       </div>
       <header className="fixed left-0 right-0 top-0 z-30 flex items-center justify-between px-4 py-4 md:px-8">
-        <button onClick={() => setScreen(screen === "menu" ? "menu" : "lobby")} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/35 px-4 py-2 text-sm font-bold backdrop-blur-xl transition hover:bg-white/10"><ArrowLeft className="h-4 w-4" /> {screen === "menu" ? "CAGE" : "Retour"}</button>
+        <button onClick={() => setScreen(screen === "menu" ? "menu" : "room")} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/35 px-4 py-2 text-sm font-bold backdrop-blur-xl transition hover:bg-white/10"><ArrowLeft className="h-4 w-4" /> {screen === "menu" ? "CAGE" : "Retour"}</button>
         <div className="rounded-full border border-red-500/30 bg-red-950/25 px-4 py-2 text-xs font-black uppercase tracking-[0.25em] text-red-200 backdrop-blur-xl">Local en ligne</div>
       </header>
       <div className="relative z-10 min-h-screen px-4 pb-28 pt-24 md:px-8">{children}</div>
@@ -113,11 +105,11 @@ function ImmersiveNotification({ text, onClose }: { text: string | null; onClose
   return <div className="fixed right-4 top-24 z-40 max-w-sm animate-in slide-in-from-right-4 duration-500 rounded-[1.5rem] border border-red-400/30 bg-black/75 p-4 shadow-2xl shadow-red-950/50 backdrop-blur-xl"><div className="flex gap-3"><MessageSquareWarning className="h-6 w-6 shrink-0 text-red-300" /><div><p className="font-black">Alerte privée</p><p className="mt-1 text-sm text-zinc-300">{text}</p></div><button onClick={onClose}><X className="h-5 w-5" /></button></div></div>
 }
 
-export function CageWildExperience() {
-  const [screen, setScreen] = useState<Screen>("loader")
+export function CageWildExperience({ initialJoinCode = "" }: { initialJoinCode?: string }) {
+  const [booted, setBooted] = useState(false)
+  const [screen, setScreen] = useState<Screen>(initialJoinCode ? "room" : "menu")
   const [progress, setProgress] = useState(0)
-  const [code, setCode] = useState(generateCode)
-  const [joinCode, setJoinCode] = useState("")
+  const cageRoom = useGameRoom("cage-wild")
   const [betrayal, setBetrayal] = useState(false)
   const [betrayalRecorded, setBetrayalRecorded] = useState(false)
   const [choice, setChoice] = useState("?")
@@ -128,43 +120,21 @@ export function CageWildExperience() {
   const [notice, setNotice] = useState<string | null>(null)
   const [players, setPlayers] = useState<Player[]>(initialPlayers)
 
-  useEffect(() => {
-    if (screen !== "loader") return
-    console.log("[LOADER] Asset loaded")
-    const visualDelay = new Promise<"visual">((resolve) => window.setTimeout(() => resolve("visual"), 3200))
-    const failsafe = new Promise<"timeout">((resolve) => window.setTimeout(() => resolve("timeout"), 4000))
-    let mounted = true
-    Promise.race([visualDelay, failsafe]).then((result) => {
-      if (!mounted) return
-      if (result === "timeout") console.log("[LOADER] Timeout reached")
-      console.log("[LOADER] Entering application")
-      setScreen("menu")
-    })
-    return () => {
-      mounted = false
-    }
-  }, [screen])
-
   const openCinema = () => setCinema(narrativeMessages[Math.floor(Math.random() * narrativeMessages.length)])
   const openNotice = () => setNotice(alerts[Math.floor(Math.random() * alerts.length)])
   const resolveVote = () => setScreen(voteCorrect ? "vote-correct" : "vote-incorrect")
   const removePlayer = (name: string) => setPlayers((current) => current.map((player) => player.name === name || player.partner === name ? { ...player, status: "eliminated" } : player))
 
-  if (screen === "loader") {
-    return <main className="flex min-h-screen items-center justify-center overflow-hidden bg-zinc-950 px-6 text-zinc-100"><div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(127,29,29,.35),transparent_45%)]" /><div className="relative z-10 w-full max-w-sm text-center"><div className="relative mx-auto mb-7 h-28 w-28 overflow-hidden rounded-[2rem] border border-red-400/50 shadow-2xl shadow-red-950/60"><Image src="/cagewild/cover.png" alt="Cage Wild" fill priority className="object-cover" /></div><p className="text-xs font-black uppercase tracking-[0.45em] text-red-300">Lien psychologique actif</p><h1 className="mt-3 text-5xl font-black">CAGE WILD</h1><div className="mt-8 flex items-center justify-center gap-3 text-xs font-black uppercase tracking-[0.35em] text-zinc-400"><span className="h-2 w-2 animate-pulse rounded-full bg-red-400" />Préparation<span className="h-2 w-2 animate-pulse rounded-full bg-zinc-100" /></div></div></main>
-  }
-
   return (
-    <Shell screen={screen} setScreen={setScreen}>
+    <>
+      {!booted && <GameLoader title="CAGE WILD" tagline="Lien psychologique actif" logo="/cagewild/cover.png" accent="red" onDone={() => setBooted(true)} />}
+      <Shell screen={screen} setScreen={setScreen}>
       <CinematicOverlay message={cinema} onClose={() => setCinema(null)} />
       <ImmersiveNotification text={notice} onClose={() => setNotice(null)} />
       {betrayal && <BetrayalModal recorded={betrayalRecorded} onAccept={() => { setBetrayalRecorded(true); setNotice("Votre choix a été enregistré.") }} onDecline={() => { setBetrayal(false); setBetrayalRecorded(false) }} onClose={() => { setBetrayal(false); setBetrayalRecorded(false) }} />}
 
       {screen === "menu" && <Menu setScreen={setScreen} openCinema={openCinema} />}
-      {screen === "lobby" && <Lobby setScreen={setScreen} />}
-      {screen === "create" && <CreateRoom code={code} setCode={setCode} setScreen={setScreen} />}
-      {screen === "join" && <JoinRoom joinCode={joinCode} setJoinCode={setJoinCode} setScreen={setScreen} />}
-      {screen === "waiting" && <Waiting setScreen={setScreen} openNotice={openNotice} />}
+      {screen === "room" && <RoomFlow room={cageRoom} gameSlug="cagewild" gameTitle="CAGE WILD" accent="red" minPlayers={2} startScreen="duos" initialView={initialJoinCode ? "join" : "select"} initialJoinCode={initialJoinCode} onEnterGame={() => setScreen("duos")} onBack={() => setScreen("menu")} />}
       {screen === "duos" && <Duos players={players} setScreen={setScreen} />}
       {screen === "games" && <Games setScreen={setScreen} openCinema={openCinema} openNotice={openNotice} />}
       {screen === "locked" && <MonopolicePreview />}
@@ -186,7 +156,8 @@ export function CageWildExperience() {
       <nav className="fixed bottom-4 left-4 right-4 z-30 mx-auto grid max-w-3xl grid-cols-6 gap-2 rounded-[1.5rem] border border-white/10 bg-black/70 p-2 backdrop-blur-xl">
         {[{ s: "games", i: Trophy }, { s: "ranking", i: BarChart3 }, { s: "analysis", i: Sparkles }, { s: "traitor", i: ShieldAlert }, { s: "history", i: History }, { s: "profiles", i: Users }].map(({ s, i: Icon }) => <button key={s} onClick={() => setScreen(s as Screen)} className="flex items-center justify-center rounded-2xl py-3 text-zinc-300 transition hover:bg-white/10 hover:text-white"><Icon className="h-5 w-5" /></button>)}
       </nav>
-    </Shell>
+      </Shell>
+    </>
   )
 }
 
@@ -195,23 +166,7 @@ function BetrayalModal({ recorded, onAccept, onDecline, onClose }: { recorded: b
 }
 
 function Menu({ setScreen, openCinema }: { setScreen: (screen: Screen) => void; openCinema: () => void }) {
-  return <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center"><Panel className="w-full max-w-3xl p-6 text-center md:p-10"><div className="relative mx-auto mb-6 h-28 w-28 overflow-hidden rounded-[2rem] border border-red-400/40 md:h-36 md:w-36"><Image src="/cagewild/cover.png" alt="Cage Wild" fill className="object-cover" /></div><p className="text-xs font-black uppercase tracking-[0.4em] text-red-300">Personne n'abandonne</p><h1 className="mt-3 text-5xl font-black md:text-8xl">CAGE WILD</h1><p className="mx-auto mt-5 max-w-xl text-zinc-300">Une expérience psychologique multijoueur locale en duo. Les téléphones portent des secrets. Les visages portent des mensonges.</p><div className="mt-8 grid gap-4 sm:grid-cols-3"><button onClick={() => setScreen("lobby")} className="rounded-2xl bg-red-200 px-6 py-5 text-lg font-black text-zinc-950 transition hover:scale-[1.02]">Entrer</button><button onClick={openCinema} className="rounded-2xl border border-red-300/30 bg-red-950/30 px-6 py-5 text-lg font-black">Diffusion</button><Link href="/" className="rounded-2xl border border-white/15 bg-white/10 px-6 py-5 text-lg font-black transition hover:bg-white/15">Quitter la plateforme</Link></div></Panel></div>
-}
-
-function Lobby({ setScreen }: { setScreen: (screen: Screen) => void }) {
-  return <div><ScreenTitle eyebrow="Multijoueur local" title="Face à face. En ligne à l'intérieur." text="Créez un salon, rejoignez avec un téléphone, formez des duos, recevez une pression cachée et interprétez le classement sans voir toute la vérité." /><div className="mx-auto grid max-w-6xl gap-4 md:grid-cols-3">{[{ icon: QrCode, title: "Créer la partie", text: "Générez un QR code local et un code de salon.", target: "create" as Screen }, { icon: LogIn, title: "Rejoindre la partie", text: "Scannez ou saisissez le code. Attendez l'organisateur.", target: "join" as Screen }, { icon: Users, title: "Sélection des duos", text: "Duos uniquement. Le système peut réorganiser après une élimination.", target: "duos" as Screen }].map((item) => <button key={item.title} onClick={() => setScreen(item.target)} className="rounded-[2rem] border border-white/10 bg-black/45 p-6 text-left backdrop-blur-xl transition hover:-translate-y-1 hover:border-red-300/50"><item.icon className="mb-5 h-10 w-10 text-red-300" /><h2 className="text-2xl font-black">{item.title}</h2><p className="mt-3 text-sm leading-6 text-zinc-400">{item.text}</p></button>)}</div></div>
-}
-
-function CreateRoom({ code, setCode, setScreen }: { code: string; setCode: (code: string) => void; setScreen: (screen: Screen) => void }) {
-  return <div className="mx-auto max-w-5xl"><ScreenTitle eyebrow="Console organisateur" title="Ouvrir une cage locale" text="Le code reste visible juste assez longtemps pour que les joueurs proches entrent. C'est une logique frontend simulée." /><Panel className="grid gap-8 p-6 md:grid-cols-[auto_1fr] md:p-10"><div className="mx-auto"><CageQr code={code} /></div><div className="flex flex-col justify-center"><p className="text-xs font-black uppercase tracking-[0.3em] text-red-300">Code du salon</p><div className="mt-4 inline-flex w-fit rounded-2xl border border-white/15 bg-white/10 px-6 py-4 text-4xl font-black tracking-[0.2em] md:text-6xl">{code}</div><p className="mt-5 text-zinc-300">Les joueurs rejoignent localement. Le jeu à distance n'est pas représenté ici.</p><div className="mt-8 flex flex-col gap-3 sm:flex-row"><button onClick={() => setCode(generateCode())} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 px-5 py-4 font-black"><RefreshCw className="h-5 w-5" /> Nouveau code</button><button onClick={() => setScreen("duos")} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-red-200 px-5 py-4 font-black text-zinc-950"><Check className="h-5 w-5" /> Verrouiller le salon</button></div></div></Panel></div>
-}
-
-function JoinRoom({ joinCode, setJoinCode, setScreen }: { joinCode: string; setJoinCode: (code: string) => void; setScreen: (screen: Screen) => void }) {
-  return <div className="mx-auto max-w-3xl"><ScreenTitle eyebrow="Appareil joueur" title="Rejoindre la cage" text="Utilisez le code local ou le QR code. Après l'entrée, attendez que l'organisateur scelle le salon." /><Panel className="grid gap-4 p-6 md:grid-cols-2 md:p-8"><button onClick={() => setScreen("waiting")} className="rounded-[1.5rem] border border-white/10 bg-white/10 p-6 transition hover:bg-white/15"><ScanLine className="mx-auto mb-4 h-12 w-12 text-red-300" /><span className="text-xl font-black">Scanner le QR</span></button><div className="rounded-[1.5rem] border border-white/10 bg-white/10 p-6"><input value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} placeholder="CW-000" className="mb-4 w-full rounded-2xl border border-white/10 bg-black/50 px-5 py-4 text-center text-2xl font-black tracking-[0.2em] outline-none focus:border-red-300" /><button disabled={!joinCode.trim()} onClick={() => setScreen("waiting")} className="w-full rounded-2xl bg-red-200 px-5 py-4 font-black text-zinc-950 disabled:opacity-40">Rejoindre</button></div></Panel></div>
-}
-
-function Waiting({ setScreen, openNotice }: { setScreen: (screen: Screen) => void; openNotice: () => void }) {
-  return <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center"><Panel className="max-w-xl p-8 text-center md:p-12"><Radio className="mx-auto mb-6 h-16 w-16 animate-pulse text-red-300" /><h1 className="text-4xl font-black">En attente de l'organisateur</h1><p className="mt-5 text-zinc-300">Restez près de votre partenaire. Vous ne recevrez pas les mêmes informations.</p><div className="mt-8 grid gap-3 sm:grid-cols-2"><button onClick={openNotice} className="rounded-2xl border border-white/15 px-6 py-4 font-black">Recevoir une alerte</button><button onClick={() => setScreen("duos")} className="rounded-2xl bg-red-200 px-6 py-4 font-black text-zinc-950">Simuler la fin</button></div></Panel></div>
+  return <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center"><Panel className="w-full max-w-3xl p-6 text-center md:p-10"><div className="relative mx-auto mb-6 h-28 w-28 overflow-hidden rounded-[2rem] border border-red-400/40 md:h-36 md:w-36"><Image src="/cagewild/cover.png" alt="Cage Wild" fill className="object-cover" /></div><p className="text-xs font-black uppercase tracking-[0.4em] text-red-300">Personne n'abandonne</p><h1 className="mt-3 text-5xl font-black md:text-8xl">CAGE WILD</h1><p className="mx-auto mt-5 max-w-xl text-zinc-300">Une expérience psychologique multijoueur locale en duo. Les téléphones portent des secrets. Les visages portent des mensonges.</p><div className="mt-8 grid gap-4 sm:grid-cols-3"><button onClick={() => setScreen("room")} className="rounded-2xl bg-red-200 px-6 py-5 text-lg font-black text-zinc-950 transition hover:scale-[1.02]">Entrer</button><button onClick={openCinema} className="rounded-2xl border border-red-300/30 bg-red-950/30 px-6 py-5 text-lg font-black">Diffusion</button><Link href="/" className="rounded-2xl border border-white/15 bg-white/10 px-6 py-5 text-lg font-black transition hover:bg-white/15">Quitter la plateforme</Link></div></Panel></div>
 }
 
 function Duos({ players, setScreen }: { players: Player[]; setScreen: (screen: Screen) => void }) {
