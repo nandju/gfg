@@ -50,6 +50,8 @@ function mapJoinError(message: string): string {
   if (message.includes("introuvable")) return "Code invalide ou partie inexistante."
   if (message.includes("verrouillée")) return "Cette partie est verrouillée."
   if (message.includes("ended") || message.includes("terminée")) return "Cette partie est terminée."
+  if (message.includes("complète")) return "Cette partie est complète."
+  if (message.includes("pseudonyme")) return "Ce pseudonyme est déjà utilisé dans cette partie."
   return "Impossible de rejoindre la partie. Réessayez."
 }
 

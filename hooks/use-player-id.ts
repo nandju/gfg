@@ -35,7 +35,7 @@ function writeStored(player: StoredPlayer) {
 }
 
 export function usePlayerIdentity(): { playerId: string; playerName: string; setPlayerName: (name: string) => void } {
-  const [player, setPlayer] = useState<StoredPlayer>(() => readStored() ?? { id: "", name: "" })
+  const [player, setPlayer] = useState<StoredPlayer>({ id: "", name: "" })
 
   useEffect(() => {
     if (player.id && player.name) return

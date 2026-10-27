@@ -1,13 +1,14 @@
 "use client"
 
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client"
 import {
   createRoom as createRoomService,
   joinRoom as joinRoomService,
   leaveRoom as leaveRoomService,
   sendEvent as sendEventService,
-  updateGameState as updateGameStateService
+  updateGameState as updateGameStateService,
+  upsertPlayer
 } from "@/services/game-room-service"
 import { useRealtimeRoom } from "@/hooks/use-realtime-room"
 import { usePlayerIdentity } from "@/hooks/use-player-id"
@@ -95,6 +96,28 @@ export function useGameRoom(gameType: GameType): UseGameRoomReturn {
       setStatus("idle")
     }
   }, [roomId, playerId])
+
+  // Marque le joueur déconnecté à la fermeture et le reconnecte au retour de visibilité.
+  useEffect(() => {
+    if (!roomId || !playerId) return
+    const onPageHide = () => {
+      const client = getSupabaseBrowserClient()
+      if (client) void leaveRoomService(client, roomId, playerId).catch(() => undefined)
+    }
+    const onVisibility = () => {
+      if (document.visibilityState !== "visible") return
+      const client = getSupabaseBrowserClient()
+      if (client) {
+        void upsertPlayer(client, { room_id: roomId, player_id: playerId, player_name: playerName || "Joueur" }).catch(() => undefined)
+      }
+    }
+    window.addEventListener("pagehide", onPageHide)
+    document.addEventListener("visibilitychange", onVisibility)
+    return () => {
+      window.removeEventListener("pagehide", onPageHide)
+      document.removeEventListener("visibilitychange", onVisibility)
+    }
+  }, [roomId, playerId, playerName])
 
   const pushState = useCallback(async (patch: GameStatePatch) => {
     const client = getSupabaseBrowserClient()
