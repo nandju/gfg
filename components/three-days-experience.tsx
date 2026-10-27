@@ -1,14 +1,14 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { AlertTriangle, ArrowLeft, BadgeCheck, BookOpen, Clock, Crown, Eye, Fingerprint, Gavel, History, Hourglass, KeyRound, Loader2, LogIn, LucideIcon, MessageCircleWarning, Moon, QrCode, ScrollText, ShieldQuestion, Skull, Sparkles, Timer, UserRound, Users, X } from "lucide-react"
+import { AlertTriangle, ArrowLeft, BadgeCheck, BookOpen, Clock, Crown, Eye, Fingerprint, Gavel, History, Hourglass, KeyRound, LucideIcon, MessageCircleWarning, Moon, ScrollText, ShieldQuestion, Skull, Timer, UserRound, Users, X } from "lucide-react"
 import { useGameRoom } from "@/hooks/use-game-room"
-import { RoomLobby, amberAccent } from "@/components/room-lobby"
-import { JoinRoomPanel } from "@/components/join-room-panel"
+import { RoomFlow } from "@/components/room-flow"
+import { GameLoader } from "@/components/game-loader"
 
-type Screen = "menu" | "lobby" | "create" | "room-lobby" | "join" | "foram-select" | "wish" | "wish-review" | "conditions" | "player" | "foram" | "monitoring" | "round" | "imminent" | "transition" | "accusation" | "reveal" | "condition-reveal" | "elimination" | "survivors" | "memory" | "history" | "profiles" | "end"
+type Screen = "loader" | "menu" | "lobby" | "create" | "join" | "waiting" | "room" | "foram-select" | "wish" | "wish-review" | "conditions" | "player" | "foram" | "monitoring" | "round" | "imminent" | "transition" | "accusation" | "reveal" | "condition-reveal" | "elimination" | "survivors" | "memory" | "history" | "profiles" | "end"
 type Role = "player" | "foram"
 type PlayerStatus = "alive" | "watched" | "suspected" | "eliminated"
 
@@ -29,10 +29,10 @@ const statusLabels: Record<PlayerStatus, string> = {
 }
 
 const initialPlayers: Player[] = [
-  { id: "p1", name: "Joueur 1", code: "W-01", status: "alive", condition: "", progress: 0 },
-  { id: "p2", name: "Joueur 2", code: "W-02", status: "alive", condition: "", progress: 0 },
-  { id: "p3", name: "Joueur 3", code: "W-03", status: "alive", condition: "", progress: 0 },
-  { id: "p4", name: "Joueur 4", code: "W-04", status: "alive", condition: "", progress: 0 }
+  { id: "p1", name: "NOVA", code: "W-01", status: "alive", condition: "Faire dire football à quelqu'un.", progress: 42 },
+  { id: "p2", name: "MIRAGE", code: "W-02", status: "watched", condition: "Faire rire sincèrement un joueur.", progress: 61 },
+  { id: "p3", name: "VANTA", code: "W-03", status: "suspected", condition: "Faire répéter un mot interdit à quelqu'un.", progress: 27 },
+  { id: "p4", name: "ORION", code: "W-04", status: "alive", condition: "Faire avouer une préférence privée à quelqu'un.", progress: 54 }
 ]
 
 const wishIdeas = [
@@ -72,6 +72,16 @@ const events = [
   "Votre condition semble exposée."
 ]
 
+const log = [
+  "Le souhait a été proposé et accepté par la table.",
+  "Le Foram a modifié l'atmosphère avant la première manche.",
+  "Un joueur a posé trop de questions sur le comportement d'un autre.",
+  "L'observateur a détecté une hésitation pendant une réponse publique.",
+  "Un faux soupçon a changé le rythme de la pièce.",
+  "Un joueur s'est défendu avant même d'être accusé.",
+  "Le système a enregistré un silence anormal après la deuxième manche."
+]
+
 const foramAlerts = [
   "Comportement incohérent détecté.",
   "Le joueur semble nerveux.",
@@ -90,7 +100,7 @@ function Shell({ children, screen, setScreen, role }: { children: React.ReactNod
         <div className="absolute inset-0 opacity-[0.13] [background-image:linear-gradient(rgba(255,255,255,.08)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.08)_1px,transparent_1px)] [background-size:44px_44px]" />
       </div>
       <header className="fixed left-0 right-0 top-0 z-30 flex items-center justify-between px-4 py-4 md:px-8">
-        <button onClick={() => setScreen(screen === "menu" ? "menu" : "lobby")} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/35 px-4 py-2 text-sm font-bold backdrop-blur-xl transition hover:bg-white/10"><ArrowLeft className="h-4 w-4" /> {screen === "menu" ? "THREE" : "Retour"}</button>
+        <button onClick={() => setScreen(screen === "menu" ? "menu" : "room")} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/35 px-4 py-2 text-sm font-bold backdrop-blur-xl transition hover:bg-white/10"><ArrowLeft className="h-4 w-4" /> {screen === "menu" ? "THREE" : "Retour"}</button>
         <div className={`rounded-full border px-4 py-2 text-xs font-black uppercase tracking-[0.25em] backdrop-blur-xl ${role === "foram" ? "border-amber-300/40 bg-amber-950/30 text-amber-100" : "border-white/10 bg-black/35 text-stone-300"}`}>{role === "foram" ? "FORAM" : "JOUEUR"}</div>
       </header>
       <div className="relative z-10 min-h-screen px-4 pb-28 pt-24 md:px-8">{children}</div>
@@ -116,10 +126,11 @@ function Blackout({ text, onClose }: { text: string | null; onClose: () => void 
   return <button onClick={onClose} className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 px-6 text-center backdrop-blur-sm"><div className="animate-in fade-in zoom-in-95 duration-700"><p className="text-xs font-black uppercase tracking-[0.45em] text-red-200">Silence du système</p><h2 className="mt-5 max-w-3xl text-4xl font-black leading-tight text-stone-100 md:text-7xl">{text}</h2><p className="mt-8 text-sm text-stone-500">Touchez pour respirer à nouveau</p></div></button>
 }
 
-export function ThreeDaysExperience() {
-  const [screen, setScreen] = useState<Screen>("menu")
+export function ThreeDaysExperience({ initialJoinCode = "" }: { initialJoinCode?: string }) {
+  const [booted, setBooted] = useState(false)
+  const [screen, setScreen] = useState<Screen>(initialJoinCode ? "room" : "menu")
   const [role, setRole] = useState<Role>("player")
-  const [joinCode, setJoinCode] = useState("")
+  const threeRoom = useGameRoom("three-days")
   const [round, setRound] = useState(1)
   const [duration, setDuration] = useState(5)
   const [wish, setWish] = useState("Ne jamais dire oui.")
@@ -130,69 +141,6 @@ export function ThreeDaysExperience() {
   const [blackout, setBlackout] = useState<string | null>(null)
   const [players, setPlayers] = useState<Player[]>(initialPlayers)
 
-  // ── Realtime rooms (create/join/lobby/presence); gameplay stays local per device. ──
-  const room = useGameRoom("three-days")
-  const urlHandledRef = useRef(false)
-
-  useEffect(() => {
-    if (urlHandledRef.current) return
-    urlHandledRef.current = true
-    const params = new URLSearchParams(window.location.search)
-    const roomParam = params.get("room")
-    if (roomParam) {
-      if (!room.enabled) return
-      void room.joinRoom(roomParam).then((r) => { if (r) setScreen("room-lobby") })
-    } else if (params.get("action") === "create") {
-      setScreen("create")
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // Guests follow the host's start signal; each device then plays locally.
-  useEffect(() => {
-    if (!room.room || screen !== "room-lobby") return
-    if (room.room.status !== "playing") return
-    const state = room.room.game_state as Record<string, unknown>
-    if (typeof state?.duration === "number") setDuration(state.duration)
-    setScreen((room.room.current_screen as Screen) || "foram-select")
-  }, [room.room, screen])
-
-  // Roster = real connected players when in a room; local placeholders otherwise.
-  useEffect(() => {
-    const connected = room.connectedPlayers
-    if (!room.room || !connected.length) return
-    setPlayers(connected.map((p, i) => ({
-      id: p.player_id,
-      name: p.player_name.toUpperCase(),
-      code: `W-${String(i + 1).padStart(2, "0")}`,
-      status: "alive" as PlayerStatus,
-      condition: "",
-      progress: 0
-    })))
-  }, [room.room, room.connectedPlayers])
-
-  const handleCreate = useCallback(() => {
-    if (!room.enabled) { setScreen("foram-select"); return }
-    void room.createRoom({ duration }).then((r) => { if (r) setScreen("room-lobby") })
-  }, [room, duration])
-
-  const handleJoin = useCallback(() => {
-    if (!room.enabled) return
-    void room.joinRoom(joinCode).then((r) => { if (r) setScreen("room-lobby") })
-  }, [room, joinCode])
-
-  const handleStart = useCallback(() => {
-    void room.pushState({ status: "playing", current_screen: "foram-select", game_state: { duration } })
-    setScreen("foram-select")
-  }, [room, duration])
-
-  const sessionFacts = [
-    room.room ? `Salon ${room.room.code} — ${room.connectedPlayers.length} joueur(s) connecté(s).` : "Mode local : aucun salon multijoueur connecté.",
-    `Manche ${round}/3 · ${duration} minutes par manche.`,
-    `${players.filter((p) => p.status !== "eliminated").length} joueur(s) encore en vie.`,
-    `Souhait actif : ${wish}`
-  ]
-
   const randomEvent = () => {
     const message = events[Math.floor(Math.random() * events.length)]
     if (Math.random() > 0.55) setBlackout(message)
@@ -201,61 +149,13 @@ export function ThreeDaysExperience() {
   const eliminate = (name: string) => setPlayers((current) => current.map((player) => player.name === name ? { ...player, status: "eliminated" } : player))
 
   return (
-    <Shell screen={screen} setScreen={setScreen} role={role}>
+    <>
+      {!booted && <GameLoader title="THREE DAYS" tagline="Le souhait est accordé" logo="/threedays/cover.png" accent="amber" onDone={() => setBooted(true)} />}
+      <Shell screen={screen} setScreen={setScreen} role={role}>
       <Blackout text={blackout} onClose={() => setBlackout(null)} />
       <EventNotice text={notice} onClose={() => setNotice(null)} />
       {screen === "menu" && <Menu setScreen={setScreen} />}
-      {screen === "lobby" && <Lobby setScreen={setScreen} />}
-      {screen === "create" && (
-        <div className="mx-auto max-w-3xl">
-          <Title eyebrow="Créer le salon" title="Ouvrir les trois jours" text="Choisissez la durée des manches, créez la room, puis partagez le code ou le QR aux joueurs." />
-          <Panel className="p-6 md:p-10">
-            <div className="grid grid-cols-2 gap-3">
-              <button onClick={() => setDuration(5)} className={`rounded-2xl px-5 py-4 font-black ${duration === 5 ? "bg-amber-100 text-stone-950" : "border border-white/15"}`}>5 min</button>
-              <button onClick={() => setDuration(10)} className={`rounded-2xl px-5 py-4 font-black ${duration === 10 ? "bg-amber-100 text-stone-950" : "border border-white/15"}`}>10 min</button>
-            </div>
-            {!room.enabled && <p className="mt-5 rounded-xl border border-amber-300/30 bg-amber-950/30 px-4 py-3 text-sm font-bold text-amber-100">Supabase n'est pas configuré : la room multijoueur est indisponible. Vous pouvez jouer en local.</p>}
-            {room.error && <p className="mt-5 rounded-xl border border-red-400/30 bg-red-950/40 px-4 py-3 text-sm font-bold text-red-200">{room.error}</p>}
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-              <button onClick={handleCreate} disabled={room.status === "creating"} className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-amber-100 px-5 py-4 font-black text-stone-950 disabled:opacity-50">
-                {room.status === "creating" ? <Loader2 className="h-5 w-5 animate-spin" /> : <QrCode className="h-5 w-5" />}
-                {room.status === "creating" ? "Création…" : room.enabled ? "Créer la partie" : "Jouer en local"}
-              </button>
-              <button onClick={() => setScreen("lobby")} className="rounded-2xl border border-white/15 px-5 py-4 font-black">Retour</button>
-            </div>
-          </Panel>
-        </div>
-      )}
-      {screen === "room-lobby" && room.room && (
-        <RoomLobby
-          room={room.room}
-          players={room.players}
-          playerId={room.playerId}
-          playerName={room.playerName}
-          isHost={room.isHost}
-          gameTitle="THREE DAYS"
-          accent={amberAccent}
-          minPlayers={3}
-          onRename={room.renameInRoom}
-          onStart={handleStart}
-          onLeave={() => { void room.leaveRoom(); setScreen("lobby") }}
-        />
-      )}
-      {screen === "join" && (
-        <JoinRoomPanel
-          code={joinCode}
-          onCodeChange={setJoinCode}
-          playerName={room.playerName}
-          onNameChange={room.setPlayerName}
-          joining={room.status === "joining"}
-          error={room.enabled ? room.error : "Multijoueur indisponible : Supabase n'est pas configuré."}
-          onJoin={handleJoin}
-          accentButton="bg-amber-100 text-stone-950 hover:bg-amber-200"
-          accentBorder="border-white/15 focus:border-amber-200"
-          title="Rejoindre une partie THREE DAYS"
-          subtitle="Entrez le code donné par l'hôte ou utilisez le QR du salon."
-        />
-      )}
+      {screen === "room" && <RoomFlow room={threeRoom} gameSlug="threedays" gameTitle="THREE DAYS" accent="amber" minPlayers={2} startScreen="foram-select" initialView={initialJoinCode ? "join" : "select"} initialJoinCode={initialJoinCode} onEnterGame={() => setScreen("foram-select")} onBack={() => setScreen("menu")} />}
       {screen === "foram-select" && <ForamSelect role={role} setRole={setRole} setScreen={setScreen} />}
       {screen === "wish" && <WishProposal wish={wish} setWish={setWish} setScreen={setScreen} />}
       {screen === "wish-review" && <WishReview wish={wish} setWish={setWish} setScreen={setScreen} />}
@@ -272,23 +172,20 @@ export function ThreeDaysExperience() {
       {screen === "elimination" && <Elimination players={players} accused={accused} correct={correctAccusation} setScreen={setScreen} />}
       {screen === "survivors" && <Survivors players={players} setScreen={setScreen} />}
       {screen === "memory" && <BehaviorMemory players={players} />}
-      {screen === "history" && <InfoGrid eyebrow="Archive" title="État de la session" icon={History} items={sessionFacts} />}
+      {screen === "history" && <InfoGrid eyebrow="Archive" title="Historique" icon={History} items={log} />}
       {screen === "profiles" && <Profiles players={players} />}
       {screen === "end" && <EndGame players={players} />}
 
       <nav className="fixed bottom-4 left-4 right-4 z-30 mx-auto grid max-w-3xl grid-cols-6 gap-2 rounded-[1.5rem] border border-white/10 bg-black/70 p-2 backdrop-blur-xl">
         {[{ s: "player", i: UserRound }, { s: "monitoring", i: Crown }, { s: "round", i: Timer }, { s: "accusation", i: ShieldQuestion }, { s: "memory", i: History }, { s: "profiles", i: Users }].map(({ s, i: Icon }) => <button key={s} onClick={() => setScreen(s as Screen)} className="flex items-center justify-center rounded-2xl py-3 text-stone-300 transition hover:bg-white/10 hover:text-white"><Icon className="h-5 w-5" /></button>)}
       </nav>
-    </Shell>
+      </Shell>
+    </>
   )
 }
 
 function Menu({ setScreen }: { setScreen: (screen: Screen) => void }) {
-  return <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center"><Panel className="w-full max-w-3xl p-6 text-center md:p-10"><div className="relative mx-auto mb-6 h-28 w-28 overflow-hidden rounded-[2rem] border border-amber-200/40 md:h-36 md:w-36"><Image src="/threedays/cover.png" alt="THREE DAYS" fill className="object-cover" /></div><p className="text-xs font-black uppercase tracking-[0.4em] text-amber-200">Le souhait est accordé</p><h1 className="mt-3 text-5xl font-black md:text-8xl">THREE DAYS</h1><p className="mx-auto mt-5 max-w-xl text-stone-300">Faites un souhait. Survivez trois manches. Ne laissez jamais personne deviner ce qui vous sauvera.</p><div className="mt-8 grid gap-4 sm:grid-cols-2"><button onClick={() => setScreen("lobby")} className="rounded-2xl bg-amber-100 px-8 py-5 text-lg font-black text-stone-950 transition hover:scale-[1.02]">Commencer</button><Link href="/" className="rounded-2xl border border-white/15 bg-white/10 px-8 py-5 text-lg font-black transition hover:bg-white/15">Retour</Link></div></Panel></div>
-}
-
-function Lobby({ setScreen }: { setScreen: (screen: Screen) => void }) {
-  return <div><Title eyebrow="Jeu local" title="Le téléphone observe seulement" text="Les joueurs interagissent face à face. Le téléphone cache les conditions, gère le souhait et décide qui disparaît." /><div className="mx-auto grid max-w-6xl gap-4 md:grid-cols-3">{[{ icon: QrCode, title: "Créer la partie", text: "Générez un code local et choisissez la durée des manches.", target: "create" as Screen }, { icon: LogIn, title: "Rejoindre la partie", text: "Entrez dans le salon et attendez le Foram.", target: "join" as Screen }, { icon: Crown, title: "Choisir le Foram", text: "Désignez l'administrateur qui accorde les souhaits.", target: "foram-select" as Screen }].map((item) => <button key={item.title} onClick={() => setScreen(item.target)} className="rounded-[2rem] border border-white/10 bg-black/45 p-6 text-left backdrop-blur-xl transition hover:-translate-y-1 hover:border-amber-200/50"><item.icon className="mb-5 h-10 w-10 text-amber-200" /><h2 className="text-2xl font-black">{item.title}</h2><p className="mt-3 text-sm leading-6 text-stone-400">{item.text}</p></button>)}</div></div>
+  return <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center"><Panel className="w-full max-w-3xl p-6 text-center md:p-10"><div className="relative mx-auto mb-6 h-28 w-28 overflow-hidden rounded-[2rem] border border-amber-200/40 md:h-36 md:w-36"><Image src="/threedays/cover.png" alt="THREE DAYS" fill className="object-cover" /></div><p className="text-xs font-black uppercase tracking-[0.4em] text-amber-200">Le souhait est accordé</p><h1 className="mt-3 text-5xl font-black md:text-8xl">THREE DAYS</h1><p className="mx-auto mt-5 max-w-xl text-stone-300">Faites un souhait. Survivez trois manches. Ne laissez jamais personne deviner ce qui vous sauvera.</p><div className="mt-8 grid gap-4 sm:grid-cols-2"><button onClick={() => setScreen("room")} className="rounded-2xl bg-amber-100 px-8 py-5 text-lg font-black text-stone-950 transition hover:scale-[1.02]">Commencer</button><Link href="/" className="rounded-2xl border border-white/15 bg-white/10 px-8 py-5 text-lg font-black transition hover:bg-white/15">Retour</Link></div></Panel></div>
 }
 
 function ForamSelect({ role, setRole, setScreen }: { role: Role; setRole: (role: Role) => void; setScreen: (screen: Screen) => void }) {

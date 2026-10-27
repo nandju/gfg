@@ -1,5 +1,5 @@
-import { HomeScreen } from "@/components/home-screen"
+import { HomePage } from "@/components/home-page"
 
-export default function HomePage() {
-  return <HomeScreen />
+export default function Home() {
+  return <HomePage />
 }

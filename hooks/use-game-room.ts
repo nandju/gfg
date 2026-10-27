@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client"
 import {
   createRoom as createRoomService,
@@ -8,7 +8,7 @@ import {
   leaveRoom as leaveRoomService,
   sendEvent as sendEventService,
   updateGameState as updateGameStateService,
-  upsertPlayer as upsertPlayerService
+  upsertPlayer
 } from "@/services/game-room-service"
 import { useRealtimeRoom } from "@/hooks/use-realtime-room"
 import { usePlayerIdentity } from "@/hooks/use-player-id"
@@ -22,7 +22,6 @@ export type UseGameRoomReturn = {
   error: string | null
   room: GameRoomRow | null
   players: RoomPlayerRow[]
-  connectedPlayers: RoomPlayerRow[]
   playerId: string
   playerName: string
   setPlayerName: (name: string) => void
@@ -32,7 +31,6 @@ export type UseGameRoomReturn = {
   leaveRoom: () => Promise<void>
   pushState: (patch: GameStatePatch) => Promise<void>
   pushEvent: (type: string, payload?: Record<string, unknown>) => Promise<void>
-  renameInRoom: (name: string) => Promise<void>
 }
 
 export function useGameRoom(gameType: GameType): UseGameRoomReturn {
@@ -42,11 +40,8 @@ export function useGameRoom(gameType: GameType): UseGameRoomReturn {
   const [status, setStatus] = useState<GameRoomStatus>("idle")
   const [error, setError] = useState<string | null>(null)
   const realtime = useRealtimeRoom(roomId)
-  const roomIdRef = useRef<string | null>(null)
-  roomIdRef.current = roomId
 
   const isHost = useMemo(() => Boolean(realtime.room && playerId && realtime.room.host_id === playerId), [realtime.room, playerId])
-  const connectedPlayers = useMemo(() => realtime.players.filter((p) => p.connected), [realtime.players])
 
   const createRoom = useCallback(async (initialState: Record<string, unknown> = {}) => {
     const client = getSupabaseBrowserClient()
@@ -85,7 +80,7 @@ export function useGameRoom(gameType: GameType): UseGameRoomReturn {
       setStatus("connected")
       return room
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Partie introuvable")
+      setError(err instanceof Error ? err.message : "Room introuvable")
       setStatus("error")
       return null
     }
@@ -93,7 +88,7 @@ export function useGameRoom(gameType: GameType): UseGameRoomReturn {
 
   const leaveRoom = useCallback(async () => {
     const client = getSupabaseBrowserClient()
-    if (!client || !roomId || !playerId) { setRoomId(null); setStatus("idle"); return }
+    if (!client || !roomId || !playerId) return
     try {
       await leaveRoomService(client, roomId, playerId)
     } finally {
@@ -102,22 +97,24 @@ export function useGameRoom(gameType: GameType): UseGameRoomReturn {
     }
   }, [roomId, playerId])
 
-  // Best-effort disconnect marker when the tab closes or hides.
+  // Marque le joueur déconnecté à la fermeture et le reconnecte au retour de visibilité.
   useEffect(() => {
-    if (!roomId) return
-    const client = getSupabaseBrowserClient()
-    if (!client) return
-    const markDisconnected = () => {
-      void leaveRoomService(client, roomId, playerId)
+    if (!roomId || !playerId) return
+    const onPageHide = () => {
+      const client = getSupabaseBrowserClient()
+      if (client) void leaveRoomService(client, roomId, playerId).catch(() => undefined)
     }
     const onVisibility = () => {
-      if (document.visibilityState === "hidden") markDisconnected()
-      else void upsertPlayerService(client, { room_id: roomId, player_id: playerId, player_name: playerName || "Joueur" })
+      if (document.visibilityState !== "visible") return
+      const client = getSupabaseBrowserClient()
+      if (client) {
+        void upsertPlayer(client, { room_id: roomId, player_id: playerId, player_name: playerName || "Joueur" }).catch(() => undefined)
+      }
     }
-    window.addEventListener("pagehide", markDisconnected)
+    window.addEventListener("pagehide", onPageHide)
     document.addEventListener("visibilitychange", onVisibility)
     return () => {
-      window.removeEventListener("pagehide", markDisconnected)
+      window.removeEventListener("pagehide", onPageHide)
       document.removeEventListener("visibilitychange", onVisibility)
     }
   }, [roomId, playerId, playerName])
@@ -142,24 +139,12 @@ export function useGameRoom(gameType: GameType): UseGameRoomReturn {
     }
   }, [roomId])
 
-  const renameInRoom = useCallback(async (name: string) => {
-    setPlayerName(name)
-    const client = getSupabaseBrowserClient()
-    if (!client || !roomIdRef.current || !playerId) return
-    try {
-      await upsertPlayerService(client, { room_id: roomIdRef.current, player_id: playerId, player_name: name.trim() || "Joueur" })
-    } catch (err) {
-      console.error("ROOM RENAME ERROR:", err)
-    }
-  }, [playerId, setPlayerName])
-
   return {
     enabled,
     status,
     error: error ?? realtime.error,
     room: realtime.room,
     players: realtime.players,
-    connectedPlayers,
     playerId,
     playerName,
     setPlayerName,
@@ -168,7 +153,6 @@ export function useGameRoom(gameType: GameType): UseGameRoomReturn {
     joinRoom,
     leaveRoom,
     pushState,
-    pushEvent,
-    renameInRoom
+    pushEvent
   }
 }

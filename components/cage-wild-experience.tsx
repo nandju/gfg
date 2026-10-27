@@ -1,14 +1,14 @@
 ﻿"use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { AlertTriangle, ArrowLeft, BadgeDollarSign, BarChart3, ChevronRight, Clock, Crown, Dice5, Eye, Fingerprint, Gauge, History, Loader2, Lock, LogIn, LucideIcon, MessageSquareWarning, QrCode, ShieldAlert, Skull, Sparkles, Timer, Trophy, Users, Vote, X, Zap } from "lucide-react"
+import { AlertTriangle, ArrowLeft, BadgeDollarSign, BarChart3, ChevronRight, Clock, Crown, Dice5, Eye, Fingerprint, Gauge, History, Lock, LucideIcon, MessageSquareWarning, ShieldAlert, Skull, Sparkles, Trophy, Users, Vote, X, Zap } from "lucide-react"
 import { useGameRoom } from "@/hooks/use-game-room"
-import { RoomLobby, redAccent } from "@/components/room-lobby"
-import { JoinRoomPanel } from "@/components/join-room-panel"
+import { RoomFlow } from "@/components/room-flow"
+import { GameLoader } from "@/components/game-loader"
 
-type Screen = "menu" | "lobby" | "create" | "room-lobby" | "join" | "duos" | "games" | "poker" | "rps" | "signal" | "ranking" | "debate" | "vote" | "vote-correct" | "vote-incorrect" | "recompose" | "analysis" | "traitor" | "history" | "profiles" | "elimination" | "locked"
+type Screen = "loader" | "menu" | "lobby" | "create" | "join" | "waiting" | "room" | "duos" | "games" | "poker" | "rps" | "signal" | "ranking" | "debate" | "vote" | "vote-correct" | "vote-incorrect" | "recompose" | "analysis" | "traitor" | "history" | "profiles" | "elimination" | "locked"
 type PlayerStatus = "active" | "unstable" | "suspect" | "eliminated"
 type VoteTone = "Silencieux" | "Agressif" | "Suspect" | "Défensif"
 
@@ -30,10 +30,12 @@ const statusLabels: Record<PlayerStatus, string> = {
 }
 
 const initialPlayers: Player[] = [
-  { id: "p1", name: "Joueur 1", code: "A-01", score: 0, status: "active", partner: "Joueur 2", tone: "Silencieux" },
-  { id: "p2", name: "Joueur 2", code: "A-02", score: 0, status: "active", partner: "Joueur 1", tone: "Défensif" },
-  { id: "p3", name: "Joueur 3", code: "B-01", score: 0, status: "active", partner: "Joueur 4", tone: "Agressif" },
-  { id: "p4", name: "Joueur 4", code: "B-02", score: 0, status: "active", partner: "Joueur 3", tone: "Suspect" }
+  { id: "p1", name: "NOVA", code: "A-01", score: 8.4, status: "active", partner: "MIRAGE", tone: "Silencieux" },
+  { id: "p2", name: "MIRAGE", code: "A-02", score: 7.1, status: "suspect", partner: "NOVA", tone: "Défensif" },
+  { id: "p3", name: "VANTA", code: "B-01", score: 6.8, status: "unstable", partner: "ORION", tone: "Agressif" },
+  { id: "p4", name: "ORION", code: "B-02", score: 5.9, status: "active", partner: "VANTA", tone: "Suspect" },
+  { id: "p5", name: "ECHO", code: "C-01", score: 4.6, status: "active", partner: "LYNX", tone: "Silencieux" },
+  { id: "p6", name: "LYNX", code: "C-02", score: 3.2, status: "eliminated", partner: "ECHO", tone: "Défensif" }
 ]
 
 const narrativeMessages = [
@@ -50,6 +52,14 @@ const alerts = [
   "Le système observe vos choix.",
   "Un téléphone a reçu un message avant les autres.",
   "Un mouvement de classement reste inexpliqué."
+]
+
+const history = [
+  "La manche 01 s'est terminée avec une variation de score inexpliquée.",
+  "Deux partenaires ont signalé des instructions incompatibles.",
+  "Le classement a été mis à jour sans révéler les détails du calcul.",
+  "Une condition privée a été acceptée par un joueur inconnu.",
+  "Un vote a créé plus d'instabilité que de certitude."
 ]
 
 const trials = [
@@ -69,7 +79,7 @@ function Shell({ children, screen, setScreen }: { children: React.ReactNode; scr
         <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(255,255,255,.06)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.06)_1px,transparent_1px)] [background-size:42px_42px]" />
       </div>
       <header className="fixed left-0 right-0 top-0 z-30 flex items-center justify-between px-4 py-4 md:px-8">
-        <button onClick={() => setScreen(screen === "menu" ? "menu" : "lobby")} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/35 px-4 py-2 text-sm font-bold backdrop-blur-xl transition hover:bg-white/10"><ArrowLeft className="h-4 w-4" /> {screen === "menu" ? "CAGE" : "Retour"}</button>
+        <button onClick={() => setScreen(screen === "menu" ? "menu" : "room")} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/35 px-4 py-2 text-sm font-bold backdrop-blur-xl transition hover:bg-white/10"><ArrowLeft className="h-4 w-4" /> {screen === "menu" ? "CAGE" : "Retour"}</button>
         <div className="rounded-full border border-red-500/30 bg-red-950/25 px-4 py-2 text-xs font-black uppercase tracking-[0.25em] text-red-200 backdrop-blur-xl">Local en ligne</div>
       </header>
       <div className="relative z-10 min-h-screen px-4 pb-28 pt-24 md:px-8">{children}</div>
@@ -95,83 +105,20 @@ function ImmersiveNotification({ text, onClose }: { text: string | null; onClose
   return <div className="fixed right-4 top-24 z-40 max-w-sm animate-in slide-in-from-right-4 duration-500 rounded-[1.5rem] border border-red-400/30 bg-black/75 p-4 shadow-2xl shadow-red-950/50 backdrop-blur-xl"><div className="flex gap-3"><MessageSquareWarning className="h-6 w-6 shrink-0 text-red-300" /><div><p className="font-black">Alerte privée</p><p className="mt-1 text-sm text-zinc-300">{text}</p></div><button onClick={onClose}><X className="h-5 w-5" /></button></div></div>
 }
 
-export function CageWildExperience() {
-  const [screen, setScreen] = useState<Screen>("menu")
-  const [joinCode, setJoinCode] = useState("")
+export function CageWildExperience({ initialJoinCode = "" }: { initialJoinCode?: string }) {
+  const [booted, setBooted] = useState(false)
+  const [screen, setScreen] = useState<Screen>(initialJoinCode ? "room" : "menu")
+  const [progress, setProgress] = useState(0)
+  const cageRoom = useGameRoom("cage-wild")
   const [betrayal, setBetrayal] = useState(false)
   const [betrayalRecorded, setBetrayalRecorded] = useState(false)
   const [choice, setChoice] = useState("?")
   const [signalStop, setSignalStop] = useState<number | null>(null)
-  const [voteTarget, setVoteTarget] = useState("")
+  const [voteTarget, setVoteTarget] = useState("MIRAGE")
   const [voteCorrect, setVoteCorrect] = useState(true)
   const [cinema, setCinema] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [players, setPlayers] = useState<Player[]>(initialPlayers)
-
-  // ── Realtime rooms (create/join/lobby/presence); gameplay stays local per device. ──
-  const room = useGameRoom("cage-wild")
-  const urlHandledRef = useRef(false)
-
-  useEffect(() => {
-    if (urlHandledRef.current) return
-    urlHandledRef.current = true
-    const params = new URLSearchParams(window.location.search)
-    const roomParam = params.get("room")
-    if (roomParam) {
-      if (!room.enabled) return
-      void room.joinRoom(roomParam).then((r) => { if (r) setScreen("room-lobby") })
-    } else if (params.get("action") === "create") {
-      setScreen("create")
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // Guests follow the host's start signal; each device then plays locally.
-  useEffect(() => {
-    if (!room.room || screen !== "room-lobby") return
-    if (room.room.status !== "playing") return
-    setScreen((room.room.current_screen as Screen) || "duos")
-  }, [room.room, screen])
-
-  // Roster = real connected players paired into duos when in a room.
-  useEffect(() => {
-    const connected = room.connectedPlayers
-    if (!room.room || !connected.length) return
-    setPlayers(connected.map((p, i) => {
-      const partnerIndex = i % 2 === 0 ? i + 1 : i - 1
-      return {
-        id: p.player_id,
-        name: p.player_name.toUpperCase(),
-        code: `${String.fromCharCode(65 + Math.floor(i / 2))}-0${(i % 2) + 1}`,
-        score: 0,
-        status: "active" as PlayerStatus,
-        partner: connected[partnerIndex]?.player_name.toUpperCase() ?? p.player_name.toUpperCase(),
-        tone: "Silencieux" as VoteTone
-      }
-    }))
-    setVoteTarget((current) => current || connected[0]?.player_name.toUpperCase() || "")
-  }, [room.room, room.connectedPlayers])
-
-  const handleCreate = useCallback(() => {
-    if (!room.enabled) { setScreen("duos"); return }
-    void room.createRoom({}).then((r) => { if (r) setScreen("room-lobby") })
-  }, [room])
-
-  const handleJoin = useCallback(() => {
-    if (!room.enabled) return
-    void room.joinRoom(joinCode).then((r) => { if (r) setScreen("room-lobby") })
-  }, [room, joinCode])
-
-  const handleStart = useCallback(() => {
-    void room.pushState({ status: "playing", current_screen: "duos", game_state: {} })
-    setScreen("duos")
-  }, [room])
-
-  const sessionFacts = [
-    room.room ? `Salon ${room.room.code} — ${room.connectedPlayers.length} joueur(s) connecté(s).` : "Mode local : aucun salon multijoueur connecté.",
-    `${players.filter((p) => p.status !== "eliminated").length} joueur(s) encore actif(s).`,
-    `${players.filter((p) => p.status === "eliminated").length} duo(s) brisé(s) par élimination.`
-  ]
 
   const openCinema = () => setCinema(narrativeMessages[Math.floor(Math.random() * narrativeMessages.length)])
   const openNotice = () => setNotice(alerts[Math.floor(Math.random() * alerts.length)])
@@ -179,59 +126,15 @@ export function CageWildExperience() {
   const removePlayer = (name: string) => setPlayers((current) => current.map((player) => player.name === name || player.partner === name ? { ...player, status: "eliminated" } : player))
 
   return (
-    <Shell screen={screen} setScreen={setScreen}>
+    <>
+      {!booted && <GameLoader title="CAGE WILD" tagline="Lien psychologique actif" logo="/cagewild/cover.png" accent="red" onDone={() => setBooted(true)} />}
+      <Shell screen={screen} setScreen={setScreen}>
       <CinematicOverlay message={cinema} onClose={() => setCinema(null)} />
       <ImmersiveNotification text={notice} onClose={() => setNotice(null)} />
       {betrayal && <BetrayalModal recorded={betrayalRecorded} onAccept={() => { setBetrayalRecorded(true); setNotice("Votre choix a été enregistré.") }} onDecline={() => { setBetrayal(false); setBetrayalRecorded(false) }} onClose={() => { setBetrayal(false); setBetrayalRecorded(false) }} />}
 
       {screen === "menu" && <Menu setScreen={setScreen} openCinema={openCinema} />}
-      {screen === "lobby" && <Lobby setScreen={setScreen} />}
-      {screen === "create" && (
-        <div className="mx-auto max-w-3xl">
-          <ScreenTitle eyebrow="Console organisateur" title="Ouvrir une cage" text="Créez la room, partagez le code ou le QR, puis formez les duos." />
-          <Panel className="p-6 md:p-10">
-            {!room.enabled && <p className="rounded-xl border border-red-400/30 bg-red-950/30 px-4 py-3 text-sm font-bold text-red-200">Supabase n'est pas configuré : la room multijoueur est indisponible. Vous pouvez jouer en local.</p>}
-            {room.error && <p className="mt-4 rounded-xl border border-red-400/30 bg-red-950/40 px-4 py-3 text-sm font-bold text-red-200">{room.error}</p>}
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-              <button onClick={handleCreate} disabled={room.status === "creating"} className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-red-200 px-5 py-4 font-black text-zinc-950 disabled:opacity-50">
-                {room.status === "creating" ? <Loader2 className="h-5 w-5 animate-spin" /> : <QrCode className="h-5 w-5" />}
-                {room.status === "creating" ? "Création…" : room.enabled ? "Créer la partie" : "Jouer en local"}
-              </button>
-              <button onClick={() => setScreen("lobby")} className="rounded-2xl border border-white/15 px-5 py-4 font-black">Retour</button>
-            </div>
-          </Panel>
-        </div>
-      )}
-      {screen === "room-lobby" && room.room && (
-        <RoomLobby
-          room={room.room}
-          players={room.players}
-          playerId={room.playerId}
-          playerName={room.playerName}
-          isHost={room.isHost}
-          gameTitle="CAGE WILD"
-          accent={redAccent}
-          minPlayers={4}
-          onRename={room.renameInRoom}
-          onStart={handleStart}
-          onLeave={() => { void room.leaveRoom(); setScreen("lobby") }}
-        />
-      )}
-      {screen === "join" && (
-        <JoinRoomPanel
-          code={joinCode}
-          onCodeChange={setJoinCode}
-          playerName={room.playerName}
-          onNameChange={room.setPlayerName}
-          joining={room.status === "joining"}
-          error={room.enabled ? room.error : "Multijoueur indisponible : Supabase n'est pas configuré."}
-          onJoin={handleJoin}
-          accentButton="bg-red-200 text-zinc-950 hover:bg-red-100"
-          accentBorder="border-white/15 focus:border-red-300"
-          title="Rejoindre une partie CAGE WILD"
-          subtitle="Entrez le code donné par l'hôte ou utilisez le QR du salon."
-        />
-      )}
+      {screen === "room" && <RoomFlow room={cageRoom} gameSlug="cagewild" gameTitle="CAGE WILD" accent="red" minPlayers={2} startScreen="duos" initialView={initialJoinCode ? "join" : "select"} initialJoinCode={initialJoinCode} onEnterGame={() => setScreen("duos")} onBack={() => setScreen("menu")} />}
       {screen === "duos" && <Duos players={players} setScreen={setScreen} />}
       {screen === "games" && <Games setScreen={setScreen} openCinema={openCinema} openNotice={openNotice} />}
       {screen === "locked" && <MonopolicePreview />}
@@ -242,18 +145,19 @@ export function CageWildExperience() {
       {screen === "debate" && <Debate players={players} voteTarget={voteTarget} setVoteTarget={setVoteTarget} setScreen={setScreen} />}
       {screen === "vote" && <VoteScreen players={players} voteTarget={voteTarget} setVoteTarget={setVoteTarget} voteCorrect={voteCorrect} setVoteCorrect={setVoteCorrect} resolveVote={resolveVote} />}
       {screen === "vote-correct" && <VoteResult correct target={voteTarget} onContinue={() => { removePlayer(voteTarget); setScreen("recompose") }} />}
-      {screen === "vote-incorrect" && <VoteResult target={voteTarget} onContinue={() => { const accuser = players.find((p) => p.status !== "eliminated" && p.name !== voteTarget); if (accuser) removePlayer(accuser.name); setScreen("recompose") }} />}
+      {screen === "vote-incorrect" && <VoteResult target={voteTarget} onContinue={() => { removePlayer("NOVA"); setScreen("recompose") }} />}
       {screen === "recompose" && <Recompose players={players} setScreen={setScreen} />}
       {screen === "analysis" && <Analysis />}
       {screen === "elimination" && <VoteResult correct target={voteTarget} onContinue={() => setScreen("recompose")} />}
       {screen === "traitor" && <InfoGrid eyebrow="Couche privée" title="Écran du traître" icon={Eye} items={["Des offres secrètes peuvent apparaître pendant n'importe quelle épreuve.", "Accepter modifie immédiatement les résultats simulés localement.", "Le système ne révèle jamais publiquement les noms des traîtres."]} />}
-      {screen === "history" && <InfoGrid eyebrow="Archive" title="État de la session" icon={History} items={sessionFacts} />}
+      {screen === "history" && <InfoGrid eyebrow="Archive" title="Historique" icon={History} items={history} />}
       {screen === "profiles" && <Profiles players={players} />}
 
       <nav className="fixed bottom-4 left-4 right-4 z-30 mx-auto grid max-w-3xl grid-cols-6 gap-2 rounded-[1.5rem] border border-white/10 bg-black/70 p-2 backdrop-blur-xl">
         {[{ s: "games", i: Trophy }, { s: "ranking", i: BarChart3 }, { s: "analysis", i: Sparkles }, { s: "traitor", i: ShieldAlert }, { s: "history", i: History }, { s: "profiles", i: Users }].map(({ s, i: Icon }) => <button key={s} onClick={() => setScreen(s as Screen)} className="flex items-center justify-center rounded-2xl py-3 text-zinc-300 transition hover:bg-white/10 hover:text-white"><Icon className="h-5 w-5" /></button>)}
       </nav>
-    </Shell>
+      </Shell>
+    </>
   )
 }
 
@@ -262,16 +166,11 @@ function BetrayalModal({ recorded, onAccept, onDecline, onClose }: { recorded: b
 }
 
 function Menu({ setScreen, openCinema }: { setScreen: (screen: Screen) => void; openCinema: () => void }) {
-  return <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center"><Panel className="w-full max-w-3xl p-6 text-center md:p-10"><div className="relative mx-auto mb-6 h-28 w-28 overflow-hidden rounded-[2rem] border border-red-400/40 md:h-36 md:w-36"><Image src="/cagewild/cover.png" alt="Cage Wild" fill className="object-cover" /></div><p className="text-xs font-black uppercase tracking-[0.4em] text-red-300">Personne n'abandonne</p><h1 className="mt-3 text-5xl font-black md:text-8xl">CAGE WILD</h1><p className="mx-auto mt-5 max-w-xl text-zinc-300">Une expérience psychologique multijoueur locale en duo. Les téléphones portent des secrets. Les visages portent des mensonges.</p><div className="mt-8 grid gap-4 sm:grid-cols-3"><button onClick={() => setScreen("lobby")} className="rounded-2xl bg-red-200 px-6 py-5 text-lg font-black text-zinc-950 transition hover:scale-[1.02]">Entrer</button><button onClick={openCinema} className="rounded-2xl border border-red-300/30 bg-red-950/30 px-6 py-5 text-lg font-black">Diffusion</button><Link href="/" className="rounded-2xl border border-white/15 bg-white/10 px-6 py-5 text-lg font-black transition hover:bg-white/15">Quitter la plateforme</Link></div></Panel></div>
-}
-
-function Lobby({ setScreen }: { setScreen: (screen: Screen) => void }) {
-  return <div><ScreenTitle eyebrow="Multijoueur local" title="Face à face. En ligne à l'intérieur." text="Créez un salon, rejoignez avec un téléphone, formez des duos, recevez une pression cachée et interprétez le classement sans voir toute la vérité." /><div className="mx-auto grid max-w-6xl gap-4 md:grid-cols-3">{[{ icon: QrCode, title: "Créer la partie", text: "Générez un QR code local et un code de salon.", target: "create" as Screen }, { icon: LogIn, title: "Rejoindre la partie", text: "Scannez ou saisissez le code. Attendez l'organisateur.", target: "join" as Screen }, { icon: Users, title: "Sélection des duos", text: "Duos uniquement. Le système peut réorganiser après une élimination.", target: "duos" as Screen }].map((item) => <button key={item.title} onClick={() => setScreen(item.target)} className="rounded-[2rem] border border-white/10 bg-black/45 p-6 text-left backdrop-blur-xl transition hover:-translate-y-1 hover:border-red-300/50"><item.icon className="mb-5 h-10 w-10 text-red-300" /><h2 className="text-2xl font-black">{item.title}</h2><p className="mt-3 text-sm leading-6 text-zinc-400">{item.text}</p></button>)}</div></div>
+  return <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center"><Panel className="w-full max-w-3xl p-6 text-center md:p-10"><div className="relative mx-auto mb-6 h-28 w-28 overflow-hidden rounded-[2rem] border border-red-400/40 md:h-36 md:w-36"><Image src="/cagewild/cover.png" alt="Cage Wild" fill className="object-cover" /></div><p className="text-xs font-black uppercase tracking-[0.4em] text-red-300">Personne n'abandonne</p><h1 className="mt-3 text-5xl font-black md:text-8xl">CAGE WILD</h1><p className="mx-auto mt-5 max-w-xl text-zinc-300">Une expérience psychologique multijoueur locale en duo. Les téléphones portent des secrets. Les visages portent des mensonges.</p><div className="mt-8 grid gap-4 sm:grid-cols-3"><button onClick={() => setScreen("room")} className="rounded-2xl bg-red-200 px-6 py-5 text-lg font-black text-zinc-950 transition hover:scale-[1.02]">Entrer</button><button onClick={openCinema} className="rounded-2xl border border-red-300/30 bg-red-950/30 px-6 py-5 text-lg font-black">Diffusion</button><Link href="/" className="rounded-2xl border border-white/15 bg-white/10 px-6 py-5 text-lg font-black transition hover:bg-white/15">Quitter la plateforme</Link></div></Panel></div>
 }
 
 function Duos({ players, setScreen }: { players: Player[]; setScreen: (screen: Screen) => void }) {
-  const duos: string[][] = []
-  for (let i = 0; i < players.length; i += 2) duos.push(players.slice(i, i + 2).map((p) => p.name))
+  const duos = [["NOVA", "MIRAGE"], ["VANTA", "ORION"], ["ECHO", "LYNX"]]
   return <div><ScreenTitle eyebrow="Système de paires" title="Sélection des duos" text="Les paires sont visibles, mais la pression assignée à chaque appareil reste privée." /><div className="mx-auto grid max-w-6xl gap-4 md:grid-cols-3">{duos.map((duo, index) => { const broken = duo.some((name) => players.find((p) => p.name === name)?.status === "eliminated"); return <Panel key={duo.join("/")} className={`p-6 ${broken ? "border-red-300/50 bg-red-950/20" : ""}`}><div className="mb-5 flex h-24 items-center justify-center rounded-2xl bg-gradient-to-br from-red-950/60 to-white/5"><Fingerprint className="h-10 w-10 text-red-300" /></div><p className="text-xs font-black uppercase tracking-[0.3em] text-zinc-500">Duo {index + 1}</p><h2 className="mt-2 text-2xl font-black">{duo.join(" / ")}</h2><p className="mt-3 text-sm text-zinc-400">{broken ? "Lien brisé. Un joueur reste seul." : "Lien stable. Niveau de confiance inconnu."}</p></Panel> })}</div><div className="mx-auto mt-6 flex max-w-6xl justify-center"><button onClick={() => setScreen("games")} className="rounded-2xl bg-red-200 px-8 py-4 font-black text-zinc-950">Choisir une épreuve</button></div></div>
 }
 
