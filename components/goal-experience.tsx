@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowLeft, BadgeCheck, BarChart3, Bot, Check, CircleHelp, Dumbbell, History, KeyRound, Lock, LogIn, Medal, Play, Plus, RefreshCw, ScanLine, Shield, Timer, Trophy, Users, Volleyball } from "lucide-react"
+import { ArrowLeft, BadgeCheck, BarChart3, Bot, CircleHelp, Dumbbell, History, KeyRound, Loader2, Lock, LogIn, Medal, Play, Plus, RefreshCw, Shield, Timer, Trophy, Users, Volleyball } from "lucide-react"
 import { useGoalRoom } from "@/hooks/use-goal-room"
+import { RoomLobby, emeraldAccent } from "@/components/room-lobby"
+import { JoinRoomPanel } from "@/components/join-room-panel"
 
-type Screen = "loader" | "menu" | "lobby" | "create" | "join" | "teams" | "games" | "quiz-select" | "quiz-loading" | "quiz-question" | "quiz-reveal" | "quiz-ranking" | "mime-loading" | "keyword-loading" | "mime" | "keyword" | "rotation" | "team-score" | "history" | "results" | "victory" | "simulation"
+type Screen = "menu" | "lobby" | "create" | "room-lobby" | "join" | "teams" | "games" | "quiz-select" | "quiz-loading" | "quiz-question" | "quiz-reveal" | "quiz-ranking" | "mime-loading" | "keyword-loading" | "mime" | "keyword" | "rotation" | "team-score" | "history" | "results" | "victory" | "simulation"
 type QuizCategory = "Teams" | "Players" | "International Competitions"
 type Difficulty = "easy" | "medium" | "hard"
 type PartyMode = "mime" | "keyword"
@@ -66,13 +68,6 @@ const keywordCards = [
   { keywords: ["Égypte", "Liverpool", "Pharaon"], answer: "Mohamed Salah", difficulty: "medium" as Difficulty },
   { keywords: ["Paris", "Vitesse", "France"], answer: "Kylian Mbappe", difficulty: "easy" as Difficulty }
 ]
-const matchHistory = ["Les Étoiles bleues ont gagné la manche de quiz 1 grâce à une réponse tardive.", "Le Onze doré a dominé le mode Mime avec deux réponses parfaites.", "Un indice mot-clé a changé le rythme du match.", "Les scores sont restés cachés jusqu'à la révélation de la cinquième question."]
-
-function generateCode() {
-  const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ"
-  return `GL-${letters[Math.floor(Math.random() * letters.length)]}${Math.floor(100 + Math.random() * 900)}`
-}
-
 async function fetchWithRetry<T>(
   url: string,
   body: unknown,
@@ -168,11 +163,6 @@ async function requestKeywordChallenge(difficulty: Difficulty): Promise<{ challe
   )
 }
 
-function QrPattern({ code }: { code: string }) {
-  const cells = useMemo(() => Array.from({ length: 81 }, (_, index) => (code.charCodeAt(index % code.length) + index * 11) % 3 !== 0), [code])
-  return <div className="grid h-48 w-48 grid-cols-9 gap-1 rounded-[2rem] bg-white p-4 shadow-2xl shadow-emerald-950/40 md:h-56 md:w-56">{cells.map((active, index) => <div key={index} className={`rounded-sm ${active ? "bg-slate-950" : "bg-white"}`} />)}</div>
-}
-
 function Panel({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return <section className={`rounded-[2rem] border border-white/10 bg-slate-950/55 shadow-2xl shadow-black/30 backdrop-blur-xl ${className}`}>{children}</section>
 }
@@ -186,8 +176,7 @@ function Title({ eyebrow, title, text }: { eyebrow: string; title: string; text:
 }
 
 export function GoalExperience() {
-  const [screen, setScreen] = useState<Screen>("loader")
-  const [code, setCode] = useState(generateCode)
+  const [screen, setScreen] = useState<Screen>("menu")
   const [joinCode, setJoinCode] = useState("")
   const [teams, setTeams] = useState<Team[]>(initialTeams)
   const [category, setCategory] = useState<QuizCategory>("International Competitions")
@@ -207,29 +196,32 @@ export function GoalExperience() {
   const [mimeChallenge, setMimeChallenge] = useState<MimeChallenge>({ player: mimePlayers[0], difficulty: "medium", mimeHints: ["Célébration", "Numéro", "Club"] })
   const [keywordChallenge, setKeywordChallenge] = useState<KeywordChallenge>(keywordCards[0])
 
-  useEffect(() => {
-    if (screen !== "loader") return
-    console.log("[LOADER] Asset loaded")
-    const visualDelay = new Promise<"visual">((resolve) => window.setTimeout(() => resolve("visual"), 3200))
-    const failsafe = new Promise<"timeout">((resolve) => window.setTimeout(() => resolve("timeout"), 4000))
-    let mounted = true
-    Promise.race([visualDelay, failsafe]).then((result) => {
-      if (!mounted) return
-      if (result === "timeout") console.log("[LOADER] Timeout reached")
-      console.log("[LOADER] Entering application")
-      setScreen("menu")
-    })
-    return () => {
-      mounted = false
-    }
-  }, [screen])
-
   // ── Realtime multiplayer (Supabase, host-authoritative) ───────────────────
   const goalRoom = useGoalRoom()
   const roomCreationRef = useRef<"idle" | "creating" | "done">("idle")
   const lastPushedRef = useRef<string>("")
   const lastReceivedRef = useRef<string>("")
+  const urlHandledRef = useRef(false)
 
+  // Deep-link: /games/goal?room=CODE joins automatically, ?action=create jumps to creation.
+  useEffect(() => {
+    if (urlHandledRef.current) return
+    urlHandledRef.current = true
+    const params = new URLSearchParams(window.location.search)
+    const roomParam = params.get("room")
+    if (roomParam) {
+      if (!goalRoom.enabled) return
+      void goalRoom.joinRoom(roomParam).then((room) => {
+        if (room) setScreen("room-lobby")
+        else setScreen("join")
+      })
+    } else if (params.get("action") === "create") {
+      setScreen("create")
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Entering "create" spins up a real room server-side, then moves to the shared lobby.
   useEffect(() => {
     if (!goalRoom.enabled) return
     if (screen !== "create") return
@@ -237,22 +229,26 @@ export function GoalExperience() {
     if (goalRoom.room) return
     roomCreationRef.current = "creating"
     goalRoom.createRoom({ teams: initialTeams }).then((room) => {
-      if (room) setCode(room.code)
-      roomCreationRef.current = "done"
+      if (room) setScreen("room-lobby")
+      else roomCreationRef.current = "idle"
     }).catch(() => { roomCreationRef.current = "idle" })
   }, [screen, goalRoom])
 
-  const joinScreenSetter = useCallback((next: Screen) => {
-    if (next !== "teams" || !goalRoom.enabled || goalRoom.room) {
-      setScreen(next)
-      return
-    }
-    if (!joinCode.trim()) { setScreen(next); return }
-    goalRoom.joinRoom(joinCode).then((room) => {
-      if (room) setCode(room.code)
-      setScreen(next)
-    }).catch(() => setScreen(next))
+  const handleJoin = useCallback(() => {
+    if (!goalRoom.enabled) return
+    void goalRoom.joinRoom(joinCode).then((room) => {
+      if (room) setScreen("room-lobby")
+    })
   }, [goalRoom, joinCode])
+
+  const displayTeams = useMemo(() => {
+    const names = goalRoom.connectedPlayers.map((p) => p.player_name)
+    if (!names.length) return teams
+    return teams.map((team, index) => ({
+      ...team,
+      players: names.filter((_, i) => i % 2 === index)
+    }))
+  }, [teams, goalRoom.connectedPlayers])
 
   useEffect(() => {
     if (!goalRoom.enabled || !goalRoom.room || !goalRoom.isHost) return
@@ -342,14 +338,54 @@ export function GoalExperience() {
     setScreen("keyword")
   }
 
-  if (screen === "loader") return <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white"><div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(34,197,94,.28),transparent_45%)]" /><div className="relative z-10 w-full max-w-sm text-center"><div className="relative mx-auto mb-7 h-28 w-28 overflow-hidden rounded-[2rem] border border-emerald-300/60 shadow-2xl shadow-emerald-950/60"><Image src="/goal!!!/cover.png" alt="GOAL!!!" fill priority className="object-cover" /></div><p className="text-xs font-black uppercase tracking-[0.45em] text-emerald-300">Coup d'envoi en chargement</p><h1 className="mt-3 text-6xl font-black">GOAL!!!</h1><div className="mt-8 flex items-center justify-center gap-3 text-xs font-black uppercase tracking-[0.35em] text-slate-400"><span className="h-2 w-2 animate-pulse rounded-full bg-emerald-300" />Préparation<span className="h-2 w-2 animate-pulse rounded-full bg-lime-200" /></div></div></main>
-
   return <Shell screen={screen} setScreen={setScreen}>
     {screen === "menu" && <Menu setScreen={setScreen} />}
     {screen === "lobby" && <Lobby setScreen={setScreen} />}
-    {screen === "create" && <CreateRoom code={code} setCode={setCode} setScreen={setScreen} />}
-    {screen === "join" && <JoinRoom joinCode={joinCode} setJoinCode={setJoinCode} setScreen={joinScreenSetter} />}
-    {screen === "teams" && <Teams teams={teams} setScreen={setScreen} />}
+    {screen === "create" && (
+      <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center">
+        <Panel className="max-w-xl p-8 text-center md:p-12">
+          <Loader2 className="mx-auto mb-6 h-14 w-14 animate-spin text-emerald-300" />
+          <h1 className="text-3xl font-black">Création du salon…</h1>
+          <p className="mt-4 text-slate-300">{goalRoom.enabled ? "Le serveur prépare votre partie et génère un vrai code." : "Supabase n'est pas configuré : le mode multijoueur est indisponible. Vous pouvez jouer en local."}</p>
+          {goalRoom.error && <p className="mt-4 rounded-xl border border-red-400/30 bg-red-950/40 px-4 py-3 text-sm font-bold text-red-200">{goalRoom.error}</p>}
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <button onClick={() => setScreen("teams")} className="flex-1 rounded-2xl border border-white/15 px-5 py-4 font-black hover:bg-white/10">Jouer en local</button>
+            <button onClick={() => setScreen("lobby")} className="flex-1 rounded-2xl border border-white/15 px-5 py-4 font-black hover:bg-white/10">Retour</button>
+          </div>
+        </Panel>
+      </div>
+    )}
+    {screen === "room-lobby" && goalRoom.room && (
+      <RoomLobby
+        room={goalRoom.room}
+        players={goalRoom.players}
+        playerId={goalRoom.playerId}
+        playerName={goalRoom.playerName}
+        isHost={goalRoom.isHost}
+        gameTitle="GOAL!!!"
+        accent={emeraldAccent}
+        minPlayers={2}
+        onRename={goalRoom.renameInRoom}
+        onStart={() => setScreen("teams")}
+        onLeave={() => { void goalRoom.leaveRoom(); setScreen("lobby") }}
+      />
+    )}
+    {screen === "join" && (
+      <JoinRoomPanel
+        code={joinCode}
+        onCodeChange={setJoinCode}
+        playerName={goalRoom.playerName}
+        onNameChange={goalRoom.setPlayerName}
+        joining={goalRoom.status === "joining"}
+        error={goalRoom.enabled ? goalRoom.error : "Multijoueur indisponible : Supabase n'est pas configuré."}
+        onJoin={handleJoin}
+        accentButton="bg-emerald-300 text-slate-950 hover:bg-emerald-200"
+        accentBorder="border-white/15 focus:border-emerald-300"
+        title="Rejoindre une partie GOAL!!!"
+        subtitle="Entrez le code donné par l'hôte ou utilisez le QR du salon."
+      />
+    )}
+    {screen === "teams" && <Teams teams={displayTeams} setScreen={setScreen} />}
     {screen === "games" && <GameSelection setScreen={setScreen} />}
     {screen === "quiz-select" && <QuizSelect category={category} setCategory={setCategory} difficulty={difficulty} setDifficulty={setDifficulty} loadQuiz={loadQuiz} />}
     {screen === "quiz-loading" && <QuizLoading category={category} />}
@@ -362,7 +398,7 @@ export function GoalExperience() {
     {screen === "keyword" && <KeywordMode teams={teams} turn={turn} challenge={keywordChallenge} source={keywordSource} loadKeyword={loadKeyword} award={award} nextTurn={nextTurn} setScreen={setScreen} keywordError={keywordError} />}
     {screen === "rotation" && <Rotation teams={teams} turn={turn} mode={partyMode} setMode={setPartyMode} loadMime={loadMime} loadKeyword={loadKeyword} />}
     {screen === "team-score" && <TeamScore teams={teams} setScreen={setScreen} />}
-    {screen === "history" && <HistoryScreen />}
+    {screen === "history" && <HistoryScreen teams={teams} questionIndex={questionIndex} players={goalRoom.connectedPlayers.map((p) => p.player_name)} room={goalRoom.room} />}
     {screen === "results" && <Results teams={teams} setScreen={setScreen} />}
     {screen === "victory" && <Victory teams={teams} />}
     {screen === "simulation" && <SimulationLocked />}
@@ -375,19 +411,11 @@ function Menu({ setScreen }: { setScreen: (screen: Screen) => void }) {
 }
 
 function Lobby({ setScreen }: { setScreen: (screen: Screen) => void }) {
-  return <div><Title eyebrow="Salon local" title="Téléphones prêts. Joueurs proches." text="Créez une partie, rejoignez avec un code, puis formez les équipes avant de choisir un mini-jeu de football." /><div className="mx-auto grid max-w-6xl gap-4 md:grid-cols-3">{[{ icon: Plus, title: "Créer le match", text: "Générez un code de salon local et un QR.", target: "create" as Screen }, { icon: LogIn, title: "Rejoindre l'équipe", text: "Rejoignez depuis votre téléphone dans la même pièce.", target: "join" as Screen }, { icon: Users, title: "Créer les équipes", text: "Préparez les noms d'équipe et l'ordre des joueurs.", target: "teams" as Screen }].map((item) => <button key={item.title} onClick={() => setScreen(item.target)} className="rounded-[2rem] border border-white/10 bg-black/45 p-6 text-left backdrop-blur-xl transition hover:-translate-y-1 hover:border-emerald-300/50"><item.icon className="mb-5 h-10 w-10 text-emerald-300" /><h2 className="text-2xl font-black">{item.title}</h2><p className="mt-3 text-sm leading-6 text-slate-400">{item.text}</p></button>)}</div></div>
-}
-
-function CreateRoom({ code, setCode, setScreen }: { code: string; setCode: (code: string) => void; setScreen: (screen: Screen) => void }) {
-  return <div className="mx-auto max-w-5xl"><Title eyebrow="Créer le match" title="Invitez l'équipe" text="Ceci est un salon local simulé. Tout le monde est physiquement ensemble et utilise son téléphone." /><Panel className="grid gap-8 p-6 md:grid-cols-[auto_1fr] md:p-10"><div className="mx-auto"><QrPattern code={code} /></div><div><p className="text-xs font-black uppercase tracking-[0.3em] text-emerald-300">Code du salon</p><div className="mt-4 inline-flex rounded-2xl border border-white/15 bg-white/10 px-6 py-4 text-4xl font-black tracking-[0.2em] md:text-6xl">{code}</div><p className="mt-5 text-slate-300">Scannez, rejoignez, choisissez les équipes et lancez une partie de football rapide.</p><div className="mt-6 flex flex-col gap-3 sm:flex-row"><button onClick={() => setCode(generateCode())} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 px-5 py-4 font-black"><RefreshCw className="h-5 w-5" /> Nouveau code</button><button onClick={() => setScreen("teams")} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-300 px-5 py-4 font-black text-slate-950"><Check className="h-5 w-5" /> Équipes prêtes</button></div></div></Panel></div>
-}
-
-function JoinRoom({ joinCode, setJoinCode, setScreen }: { joinCode: string; setJoinCode: (value: string) => void; setScreen: (screen: Screen) => void }) {
-  return <div className="mx-auto max-w-3xl"><Title eyebrow="Rejoindre" title="Entrez dans le stade" text="Scannez le QR code ou saisissez le code du salon donné par l'organisateur." /><Panel className="grid gap-4 p-6 md:grid-cols-2 md:p-8"><button onClick={() => setScreen("teams")} className="rounded-[1.5rem] border border-white/10 bg-white/10 p-6 transition hover:bg-white/15"><ScanLine className="mx-auto mb-4 h-12 w-12 text-emerald-300" /><span className="text-xl font-black">Scanner le QR</span></button><div className="rounded-[1.5rem] border border-white/10 bg-white/10 p-6"><input value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} placeholder="GL-000" className="mb-4 w-full rounded-2xl border border-white/10 bg-black/50 px-5 py-4 text-center text-2xl font-black tracking-[0.2em] outline-none focus:border-emerald-300" /><button disabled={!joinCode.trim()} onClick={() => setScreen("teams")} className="w-full rounded-2xl bg-emerald-300 px-5 py-4 font-black text-slate-950 disabled:opacity-40">Rejoindre</button></div></Panel></div>
+  return <div><Title eyebrow="Salon" title="Téléphones prêts. Joueurs connectés." text="Créez une partie, partagez le code ou le QR, puis formez les équipes avant de choisir un mini-jeu de football." /><div className="mx-auto grid max-w-6xl gap-4 md:grid-cols-3">{[{ icon: Plus, title: "Créer le match", text: "Générez un code de salon local et un QR.", target: "create" as Screen }, { icon: LogIn, title: "Rejoindre l'équipe", text: "Rejoignez depuis votre téléphone dans la même pièce.", target: "join" as Screen }, { icon: Users, title: "Créer les équipes", text: "Préparez les noms d'équipe et l'ordre des joueurs.", target: "teams" as Screen }].map((item) => <button key={item.title} onClick={() => setScreen(item.target)} className="rounded-[2rem] border border-white/10 bg-black/45 p-6 text-left backdrop-blur-xl transition hover:-translate-y-1 hover:border-emerald-300/50"><item.icon className="mb-5 h-10 w-10 text-emerald-300" /><h2 className="text-2xl font-black">{item.title}</h2><p className="mt-3 text-sm leading-6 text-slate-400">{item.text}</p></button>)}</div></div>
 }
 
 function Teams({ teams, setScreen }: { teams: Team[]; setScreen: (screen: Screen) => void }) {
-  return <div className="mx-auto max-w-6xl"><Title eyebrow="Équipes" title="Créez le vestiaire" text="Les équipes sont des groupes locaux simulés. Les joueurs se passent les rôles du téléphone pendant les mini-jeux." /><div className="grid gap-4 md:grid-cols-2">{teams.map((team) => <Panel key={team.id} className="overflow-hidden p-6"><div className={`mb-5 h-2 rounded-full bg-gradient-to-r ${team.color}`} /><h2 className="text-3xl font-black">{team.name}</h2><div className="mt-5 grid gap-2">{team.players.map((player) => <div key={player} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 font-bold">{player}</div>)}</div></Panel>)}</div><button onClick={() => setScreen("games")} className="mt-6 w-full rounded-2xl bg-emerald-300 px-6 py-4 font-black text-slate-950">Choisir un mini-jeu</button></div>
+  return <div className="mx-auto max-w-6xl"><Title eyebrow="Équipes" title="Créez le vestiaire" text="Les joueurs connectés sont répartis entre les deux équipes. Chacun joue son tour pendant les mini-jeux." /><div className="grid gap-4 md:grid-cols-2">{teams.map((team) => <Panel key={team.id} className="overflow-hidden p-6"><div className={`mb-5 h-2 rounded-full bg-gradient-to-r ${team.color}`} /><h2 className="text-3xl font-black">{team.name}</h2><div className="mt-5 grid gap-2">{team.players.map((player) => <div key={player} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 font-bold">{player}</div>)}</div></Panel>)}</div><button onClick={() => setScreen("games")} className="mt-6 w-full rounded-2xl bg-emerald-300 px-6 py-4 font-black text-slate-950">Choisir un mini-jeu</button></div>
 }
 
 function GameSelection({ setScreen }: { setScreen: (screen: Screen) => void }) {
@@ -437,8 +465,13 @@ function TeamScore({ teams, setScreen }: { teams: Team[]; setScreen: (screen: Sc
   return <div className="mx-auto max-w-5xl"><Title eyebrow="Tableau des scores" title="Le match est vivant" text="Les scores évoluent après chaque tour d'équipe. Gardez un rythme rapide." /><div className="grid gap-4 md:grid-cols-2">{teams.map((team) => <Panel key={team.id} className="p-6"><div className={`mb-5 h-2 rounded-full bg-gradient-to-r ${team.color}`} /><h2 className="text-3xl font-black">{team.name}</h2><p className="mt-5 text-7xl font-black text-emerald-300">{team.score}</p></Panel>)}</div><div className="mt-6 grid gap-3 sm:grid-cols-2"><button onClick={() => setScreen("rotation")} className="rounded-2xl bg-emerald-300 px-6 py-4 font-black text-slate-950">Tour suivant</button><button onClick={() => setScreen("results")} className="rounded-2xl border border-white/15 px-6 py-4 font-black">Résultats finaux</button></div></div>
 }
 
-function HistoryScreen() {
-  return <div className="mx-auto max-w-5xl"><Title eyebrow="Historique du match" title="Chronologie du direct" text="Un résumé rapide des buts, réponses, révélations et dynamiques d'équipe." /><div className="grid gap-4 md:grid-cols-2">{matchHistory.map((item) => <Panel key={item} className="p-6"><History className="mb-5 h-9 w-9 text-emerald-300" /><p className="leading-7 text-slate-300">{item}</p></Panel>)}</div></div>
+function HistoryScreen({ teams, questionIndex, players, room }: { teams: Team[]; questionIndex: number; players: string[]; room: { code: string } | null }) {
+  const facts = [
+    `Question actuelle : n°${questionIndex + 1} sur 5.`,
+    room ? `Salon ${room.code} — ${players.length} joueur${players.length > 1 ? "s" : ""} connecté${players.length > 1 ? "s" : ""}.` : "Mode local : aucun salon multijoueur connecté.",
+    ...teams.map((team) => `${team.name} : ${team.score} point${team.score > 1 ? "s" : ""}.`)
+  ]
+  return <div className="mx-auto max-w-5xl"><Title eyebrow="Résumé de session" title="L'état du match" text="Les données réelles de la session en cours : scores, progression et joueurs connectés." /><div className="grid gap-4 md:grid-cols-2">{facts.map((item) => <Panel key={item} className="p-6"><History className="mb-5 h-9 w-9 text-emerald-300" /><p className="leading-7 text-slate-300">{item}</p></Panel>)}</div>{players.length > 0 && <Panel className="mt-4 p-6"><p className="text-xs font-black uppercase tracking-[0.3em] text-slate-500">Joueurs connectés</p><div className="mt-3 flex flex-wrap gap-2">{players.map((name) => <span key={name} className="rounded-full border border-emerald-300/30 bg-emerald-300/10 px-4 py-2 text-sm font-bold text-emerald-100">{name}</span>)}</div></Panel>}</div>
 }
 
 function Results({ teams, setScreen }: { teams: Team[]; setScreen: (screen: Screen) => void }) {

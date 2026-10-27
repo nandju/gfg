@@ -1,11 +1,14 @@
 ﻿"use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { AlertTriangle, ArrowLeft, BadgeDollarSign, BarChart3, Check, ChevronRight, Clock, Crown, Dice5, Eye, Fingerprint, Gauge, History, Lock, LogIn, LucideIcon, MessageSquareWarning, QrCode, Radio, RefreshCw, ScanLine, ShieldAlert, Skull, Sparkles, Timer, Trophy, Users, Vote, X, Zap } from "lucide-react"
+import { AlertTriangle, ArrowLeft, BadgeDollarSign, BarChart3, ChevronRight, Clock, Crown, Dice5, Eye, Fingerprint, Gauge, History, Loader2, Lock, LogIn, LucideIcon, MessageSquareWarning, QrCode, ShieldAlert, Skull, Sparkles, Timer, Trophy, Users, Vote, X, Zap } from "lucide-react"
+import { useGameRoom } from "@/hooks/use-game-room"
+import { RoomLobby, redAccent } from "@/components/room-lobby"
+import { JoinRoomPanel } from "@/components/join-room-panel"
 
-type Screen = "loader" | "menu" | "lobby" | "create" | "join" | "waiting" | "duos" | "games" | "poker" | "rps" | "signal" | "ranking" | "debate" | "vote" | "vote-correct" | "vote-incorrect" | "recompose" | "analysis" | "traitor" | "history" | "profiles" | "elimination" | "locked"
+type Screen = "menu" | "lobby" | "create" | "room-lobby" | "join" | "duos" | "games" | "poker" | "rps" | "signal" | "ranking" | "debate" | "vote" | "vote-correct" | "vote-incorrect" | "recompose" | "analysis" | "traitor" | "history" | "profiles" | "elimination" | "locked"
 type PlayerStatus = "active" | "unstable" | "suspect" | "eliminated"
 type VoteTone = "Silencieux" | "Agressif" | "Suspect" | "Défensif"
 
@@ -27,12 +30,10 @@ const statusLabels: Record<PlayerStatus, string> = {
 }
 
 const initialPlayers: Player[] = [
-  { id: "p1", name: "NOVA", code: "A-01", score: 8.4, status: "active", partner: "MIRAGE", tone: "Silencieux" },
-  { id: "p2", name: "MIRAGE", code: "A-02", score: 7.1, status: "suspect", partner: "NOVA", tone: "Défensif" },
-  { id: "p3", name: "VANTA", code: "B-01", score: 6.8, status: "unstable", partner: "ORION", tone: "Agressif" },
-  { id: "p4", name: "ORION", code: "B-02", score: 5.9, status: "active", partner: "VANTA", tone: "Suspect" },
-  { id: "p5", name: "ECHO", code: "C-01", score: 4.6, status: "active", partner: "LYNX", tone: "Silencieux" },
-  { id: "p6", name: "LYNX", code: "C-02", score: 3.2, status: "eliminated", partner: "ECHO", tone: "Défensif" }
+  { id: "p1", name: "Joueur 1", code: "A-01", score: 0, status: "active", partner: "Joueur 2", tone: "Silencieux" },
+  { id: "p2", name: "Joueur 2", code: "A-02", score: 0, status: "active", partner: "Joueur 1", tone: "Défensif" },
+  { id: "p3", name: "Joueur 3", code: "B-01", score: 0, status: "active", partner: "Joueur 4", tone: "Agressif" },
+  { id: "p4", name: "Joueur 4", code: "B-02", score: 0, status: "active", partner: "Joueur 3", tone: "Suspect" }
 ]
 
 const narrativeMessages = [
@@ -51,31 +52,12 @@ const alerts = [
   "Un mouvement de classement reste inexpliqué."
 ]
 
-const history = [
-  "La manche 01 s'est terminée avec une variation de score inexpliquée.",
-  "Deux partenaires ont signalé des instructions incompatibles.",
-  "Le classement a été mis à jour sans révéler les détails du calcul.",
-  "Une condition privée a été acceptée par un joueur inconnu.",
-  "Un vote a créé plus d'instabilité que de certitude."
-]
-
 const trials = [
   { id: "monopolice", title: "MONOPOLICE DU ROI", status: "Bientôt disponible", locked: true, text: "Course psychologique stratégique. Le plateau est visible mais scellé." },
   { id: "poker", title: "POKER FACE  PETIT GÉANT", status: "Simulation jouable", locked: false, text: "Logique cachée. Choisissez, observez, déduisez." },
   { id: "rps", title: "ROIS PIERRE-PAPIER", status: "Simulation jouable", locked: false, text: "Gestes simples. Conséquences floues." },
   { id: "signal", title: "LE SIGNAL", status: "Simulation jouable", locked: false, text: "Synchronisation sous pression." }
 ]
-
-function generateCode() {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ"
-  return `CW-${alphabet[Math.floor(Math.random() * alphabet.length)]}${Math.floor(100 + Math.random() * 900)}`
-}
-
-function CageQr({ code }: { code: string }) {
-  const cells = useMemo(() => Array.from({ length: 100 }, (_, index) => (code.charCodeAt(index % code.length) + index * 11) % 4 !== 0), [code])
-
-  return <div className="grid h-52 w-52 grid-cols-10 gap-1 rounded-[2rem] bg-zinc-100 p-4 shadow-2xl shadow-red-950/40 md:h-64 md:w-64">{cells.map((active, index) => <div key={index} className={`rounded-[2px] ${active ? "bg-zinc-950" : "bg-zinc-100"}`} />)}</div>
-}
 
 function Shell({ children, screen, setScreen }: { children: React.ReactNode; screen: Screen; setScreen: (screen: Screen) => void }) {
   return (
@@ -114,45 +96,87 @@ function ImmersiveNotification({ text, onClose }: { text: string | null; onClose
 }
 
 export function CageWildExperience() {
-  const [screen, setScreen] = useState<Screen>("loader")
-  const [progress, setProgress] = useState(0)
-  const [code, setCode] = useState(generateCode)
+  const [screen, setScreen] = useState<Screen>("menu")
   const [joinCode, setJoinCode] = useState("")
   const [betrayal, setBetrayal] = useState(false)
   const [betrayalRecorded, setBetrayalRecorded] = useState(false)
   const [choice, setChoice] = useState("?")
   const [signalStop, setSignalStop] = useState<number | null>(null)
-  const [voteTarget, setVoteTarget] = useState("MIRAGE")
+  const [voteTarget, setVoteTarget] = useState("")
   const [voteCorrect, setVoteCorrect] = useState(true)
   const [cinema, setCinema] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [players, setPlayers] = useState<Player[]>(initialPlayers)
 
+  // ── Realtime rooms (create/join/lobby/presence); gameplay stays local per device. ──
+  const room = useGameRoom("cage-wild")
+  const urlHandledRef = useRef(false)
+
   useEffect(() => {
-    if (screen !== "loader") return
-    console.log("[LOADER] Asset loaded")
-    const visualDelay = new Promise<"visual">((resolve) => window.setTimeout(() => resolve("visual"), 3200))
-    const failsafe = new Promise<"timeout">((resolve) => window.setTimeout(() => resolve("timeout"), 4000))
-    let mounted = true
-    Promise.race([visualDelay, failsafe]).then((result) => {
-      if (!mounted) return
-      if (result === "timeout") console.log("[LOADER] Timeout reached")
-      console.log("[LOADER] Entering application")
-      setScreen("menu")
-    })
-    return () => {
-      mounted = false
+    if (urlHandledRef.current) return
+    urlHandledRef.current = true
+    const params = new URLSearchParams(window.location.search)
+    const roomParam = params.get("room")
+    if (roomParam) {
+      if (!room.enabled) return
+      void room.joinRoom(roomParam).then((r) => { if (r) setScreen("room-lobby") })
+    } else if (params.get("action") === "create") {
+      setScreen("create")
     }
-  }, [screen])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Guests follow the host's start signal; each device then plays locally.
+  useEffect(() => {
+    if (!room.room || screen !== "room-lobby") return
+    if (room.room.status !== "playing") return
+    setScreen((room.room.current_screen as Screen) || "duos")
+  }, [room.room, screen])
+
+  // Roster = real connected players paired into duos when in a room.
+  useEffect(() => {
+    const connected = room.connectedPlayers
+    if (!room.room || !connected.length) return
+    setPlayers(connected.map((p, i) => {
+      const partnerIndex = i % 2 === 0 ? i + 1 : i - 1
+      return {
+        id: p.player_id,
+        name: p.player_name.toUpperCase(),
+        code: `${String.fromCharCode(65 + Math.floor(i / 2))}-0${(i % 2) + 1}`,
+        score: 0,
+        status: "active" as PlayerStatus,
+        partner: connected[partnerIndex]?.player_name.toUpperCase() ?? p.player_name.toUpperCase(),
+        tone: "Silencieux" as VoteTone
+      }
+    }))
+    setVoteTarget((current) => current || connected[0]?.player_name.toUpperCase() || "")
+  }, [room.room, room.connectedPlayers])
+
+  const handleCreate = useCallback(() => {
+    if (!room.enabled) { setScreen("duos"); return }
+    void room.createRoom({}).then((r) => { if (r) setScreen("room-lobby") })
+  }, [room])
+
+  const handleJoin = useCallback(() => {
+    if (!room.enabled) return
+    void room.joinRoom(joinCode).then((r) => { if (r) setScreen("room-lobby") })
+  }, [room, joinCode])
+
+  const handleStart = useCallback(() => {
+    void room.pushState({ status: "playing", current_screen: "duos", game_state: {} })
+    setScreen("duos")
+  }, [room])
+
+  const sessionFacts = [
+    room.room ? `Salon ${room.room.code} — ${room.connectedPlayers.length} joueur(s) connecté(s).` : "Mode local : aucun salon multijoueur connecté.",
+    `${players.filter((p) => p.status !== "eliminated").length} joueur(s) encore actif(s).`,
+    `${players.filter((p) => p.status === "eliminated").length} duo(s) brisé(s) par élimination.`
+  ]
 
   const openCinema = () => setCinema(narrativeMessages[Math.floor(Math.random() * narrativeMessages.length)])
   const openNotice = () => setNotice(alerts[Math.floor(Math.random() * alerts.length)])
   const resolveVote = () => setScreen(voteCorrect ? "vote-correct" : "vote-incorrect")
   const removePlayer = (name: string) => setPlayers((current) => current.map((player) => player.name === name || player.partner === name ? { ...player, status: "eliminated" } : player))
-
-  if (screen === "loader") {
-    return <main className="flex min-h-screen items-center justify-center overflow-hidden bg-zinc-950 px-6 text-zinc-100"><div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(127,29,29,.35),transparent_45%)]" /><div className="relative z-10 w-full max-w-sm text-center"><div className="relative mx-auto mb-7 h-28 w-28 overflow-hidden rounded-[2rem] border border-red-400/50 shadow-2xl shadow-red-950/60"><Image src="/cagewild/cover.png" alt="Cage Wild" fill priority className="object-cover" /></div><p className="text-xs font-black uppercase tracking-[0.45em] text-red-300">Lien psychologique actif</p><h1 className="mt-3 text-5xl font-black">CAGE WILD</h1><div className="mt-8 flex items-center justify-center gap-3 text-xs font-black uppercase tracking-[0.35em] text-zinc-400"><span className="h-2 w-2 animate-pulse rounded-full bg-red-400" />Préparation<span className="h-2 w-2 animate-pulse rounded-full bg-zinc-100" /></div></div></main>
-  }
 
   return (
     <Shell screen={screen} setScreen={setScreen}>
@@ -162,9 +186,52 @@ export function CageWildExperience() {
 
       {screen === "menu" && <Menu setScreen={setScreen} openCinema={openCinema} />}
       {screen === "lobby" && <Lobby setScreen={setScreen} />}
-      {screen === "create" && <CreateRoom code={code} setCode={setCode} setScreen={setScreen} />}
-      {screen === "join" && <JoinRoom joinCode={joinCode} setJoinCode={setJoinCode} setScreen={setScreen} />}
-      {screen === "waiting" && <Waiting setScreen={setScreen} openNotice={openNotice} />}
+      {screen === "create" && (
+        <div className="mx-auto max-w-3xl">
+          <ScreenTitle eyebrow="Console organisateur" title="Ouvrir une cage" text="Créez la room, partagez le code ou le QR, puis formez les duos." />
+          <Panel className="p-6 md:p-10">
+            {!room.enabled && <p className="rounded-xl border border-red-400/30 bg-red-950/30 px-4 py-3 text-sm font-bold text-red-200">Supabase n'est pas configuré : la room multijoueur est indisponible. Vous pouvez jouer en local.</p>}
+            {room.error && <p className="mt-4 rounded-xl border border-red-400/30 bg-red-950/40 px-4 py-3 text-sm font-bold text-red-200">{room.error}</p>}
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <button onClick={handleCreate} disabled={room.status === "creating"} className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-red-200 px-5 py-4 font-black text-zinc-950 disabled:opacity-50">
+                {room.status === "creating" ? <Loader2 className="h-5 w-5 animate-spin" /> : <QrCode className="h-5 w-5" />}
+                {room.status === "creating" ? "Création…" : room.enabled ? "Créer la partie" : "Jouer en local"}
+              </button>
+              <button onClick={() => setScreen("lobby")} className="rounded-2xl border border-white/15 px-5 py-4 font-black">Retour</button>
+            </div>
+          </Panel>
+        </div>
+      )}
+      {screen === "room-lobby" && room.room && (
+        <RoomLobby
+          room={room.room}
+          players={room.players}
+          playerId={room.playerId}
+          playerName={room.playerName}
+          isHost={room.isHost}
+          gameTitle="CAGE WILD"
+          accent={redAccent}
+          minPlayers={4}
+          onRename={room.renameInRoom}
+          onStart={handleStart}
+          onLeave={() => { void room.leaveRoom(); setScreen("lobby") }}
+        />
+      )}
+      {screen === "join" && (
+        <JoinRoomPanel
+          code={joinCode}
+          onCodeChange={setJoinCode}
+          playerName={room.playerName}
+          onNameChange={room.setPlayerName}
+          joining={room.status === "joining"}
+          error={room.enabled ? room.error : "Multijoueur indisponible : Supabase n'est pas configuré."}
+          onJoin={handleJoin}
+          accentButton="bg-red-200 text-zinc-950 hover:bg-red-100"
+          accentBorder="border-white/15 focus:border-red-300"
+          title="Rejoindre une partie CAGE WILD"
+          subtitle="Entrez le code donné par l'hôte ou utilisez le QR du salon."
+        />
+      )}
       {screen === "duos" && <Duos players={players} setScreen={setScreen} />}
       {screen === "games" && <Games setScreen={setScreen} openCinema={openCinema} openNotice={openNotice} />}
       {screen === "locked" && <MonopolicePreview />}
@@ -175,12 +242,12 @@ export function CageWildExperience() {
       {screen === "debate" && <Debate players={players} voteTarget={voteTarget} setVoteTarget={setVoteTarget} setScreen={setScreen} />}
       {screen === "vote" && <VoteScreen players={players} voteTarget={voteTarget} setVoteTarget={setVoteTarget} voteCorrect={voteCorrect} setVoteCorrect={setVoteCorrect} resolveVote={resolveVote} />}
       {screen === "vote-correct" && <VoteResult correct target={voteTarget} onContinue={() => { removePlayer(voteTarget); setScreen("recompose") }} />}
-      {screen === "vote-incorrect" && <VoteResult target={voteTarget} onContinue={() => { removePlayer("NOVA"); setScreen("recompose") }} />}
+      {screen === "vote-incorrect" && <VoteResult target={voteTarget} onContinue={() => { const accuser = players.find((p) => p.status !== "eliminated" && p.name !== voteTarget); if (accuser) removePlayer(accuser.name); setScreen("recompose") }} />}
       {screen === "recompose" && <Recompose players={players} setScreen={setScreen} />}
       {screen === "analysis" && <Analysis />}
       {screen === "elimination" && <VoteResult correct target={voteTarget} onContinue={() => setScreen("recompose")} />}
       {screen === "traitor" && <InfoGrid eyebrow="Couche privée" title="Écran du traître" icon={Eye} items={["Des offres secrètes peuvent apparaître pendant n'importe quelle épreuve.", "Accepter modifie immédiatement les résultats simulés localement.", "Le système ne révèle jamais publiquement les noms des traîtres."]} />}
-      {screen === "history" && <InfoGrid eyebrow="Archive" title="Historique" icon={History} items={history} />}
+      {screen === "history" && <InfoGrid eyebrow="Archive" title="État de la session" icon={History} items={sessionFacts} />}
       {screen === "profiles" && <Profiles players={players} />}
 
       <nav className="fixed bottom-4 left-4 right-4 z-30 mx-auto grid max-w-3xl grid-cols-6 gap-2 rounded-[1.5rem] border border-white/10 bg-black/70 p-2 backdrop-blur-xl">
@@ -202,20 +269,9 @@ function Lobby({ setScreen }: { setScreen: (screen: Screen) => void }) {
   return <div><ScreenTitle eyebrow="Multijoueur local" title="Face à face. En ligne à l'intérieur." text="Créez un salon, rejoignez avec un téléphone, formez des duos, recevez une pression cachée et interprétez le classement sans voir toute la vérité." /><div className="mx-auto grid max-w-6xl gap-4 md:grid-cols-3">{[{ icon: QrCode, title: "Créer la partie", text: "Générez un QR code local et un code de salon.", target: "create" as Screen }, { icon: LogIn, title: "Rejoindre la partie", text: "Scannez ou saisissez le code. Attendez l'organisateur.", target: "join" as Screen }, { icon: Users, title: "Sélection des duos", text: "Duos uniquement. Le système peut réorganiser après une élimination.", target: "duos" as Screen }].map((item) => <button key={item.title} onClick={() => setScreen(item.target)} className="rounded-[2rem] border border-white/10 bg-black/45 p-6 text-left backdrop-blur-xl transition hover:-translate-y-1 hover:border-red-300/50"><item.icon className="mb-5 h-10 w-10 text-red-300" /><h2 className="text-2xl font-black">{item.title}</h2><p className="mt-3 text-sm leading-6 text-zinc-400">{item.text}</p></button>)}</div></div>
 }
 
-function CreateRoom({ code, setCode, setScreen }: { code: string; setCode: (code: string) => void; setScreen: (screen: Screen) => void }) {
-  return <div className="mx-auto max-w-5xl"><ScreenTitle eyebrow="Console organisateur" title="Ouvrir une cage locale" text="Le code reste visible juste assez longtemps pour que les joueurs proches entrent. C'est une logique frontend simulée." /><Panel className="grid gap-8 p-6 md:grid-cols-[auto_1fr] md:p-10"><div className="mx-auto"><CageQr code={code} /></div><div className="flex flex-col justify-center"><p className="text-xs font-black uppercase tracking-[0.3em] text-red-300">Code du salon</p><div className="mt-4 inline-flex w-fit rounded-2xl border border-white/15 bg-white/10 px-6 py-4 text-4xl font-black tracking-[0.2em] md:text-6xl">{code}</div><p className="mt-5 text-zinc-300">Les joueurs rejoignent localement. Le jeu à distance n'est pas représenté ici.</p><div className="mt-8 flex flex-col gap-3 sm:flex-row"><button onClick={() => setCode(generateCode())} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 px-5 py-4 font-black"><RefreshCw className="h-5 w-5" /> Nouveau code</button><button onClick={() => setScreen("duos")} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-red-200 px-5 py-4 font-black text-zinc-950"><Check className="h-5 w-5" /> Verrouiller le salon</button></div></div></Panel></div>
-}
-
-function JoinRoom({ joinCode, setJoinCode, setScreen }: { joinCode: string; setJoinCode: (code: string) => void; setScreen: (screen: Screen) => void }) {
-  return <div className="mx-auto max-w-3xl"><ScreenTitle eyebrow="Appareil joueur" title="Rejoindre la cage" text="Utilisez le code local ou le QR code. Après l'entrée, attendez que l'organisateur scelle le salon." /><Panel className="grid gap-4 p-6 md:grid-cols-2 md:p-8"><button onClick={() => setScreen("waiting")} className="rounded-[1.5rem] border border-white/10 bg-white/10 p-6 transition hover:bg-white/15"><ScanLine className="mx-auto mb-4 h-12 w-12 text-red-300" /><span className="text-xl font-black">Scanner le QR</span></button><div className="rounded-[1.5rem] border border-white/10 bg-white/10 p-6"><input value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} placeholder="CW-000" className="mb-4 w-full rounded-2xl border border-white/10 bg-black/50 px-5 py-4 text-center text-2xl font-black tracking-[0.2em] outline-none focus:border-red-300" /><button disabled={!joinCode.trim()} onClick={() => setScreen("waiting")} className="w-full rounded-2xl bg-red-200 px-5 py-4 font-black text-zinc-950 disabled:opacity-40">Rejoindre</button></div></Panel></div>
-}
-
-function Waiting({ setScreen, openNotice }: { setScreen: (screen: Screen) => void; openNotice: () => void }) {
-  return <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center"><Panel className="max-w-xl p-8 text-center md:p-12"><Radio className="mx-auto mb-6 h-16 w-16 animate-pulse text-red-300" /><h1 className="text-4xl font-black">En attente de l'organisateur</h1><p className="mt-5 text-zinc-300">Restez près de votre partenaire. Vous ne recevrez pas les mêmes informations.</p><div className="mt-8 grid gap-3 sm:grid-cols-2"><button onClick={openNotice} className="rounded-2xl border border-white/15 px-6 py-4 font-black">Recevoir une alerte</button><button onClick={() => setScreen("duos")} className="rounded-2xl bg-red-200 px-6 py-4 font-black text-zinc-950">Simuler la fin</button></div></Panel></div>
-}
-
 function Duos({ players, setScreen }: { players: Player[]; setScreen: (screen: Screen) => void }) {
-  const duos = [["NOVA", "MIRAGE"], ["VANTA", "ORION"], ["ECHO", "LYNX"]]
+  const duos: string[][] = []
+  for (let i = 0; i < players.length; i += 2) duos.push(players.slice(i, i + 2).map((p) => p.name))
   return <div><ScreenTitle eyebrow="Système de paires" title="Sélection des duos" text="Les paires sont visibles, mais la pression assignée à chaque appareil reste privée." /><div className="mx-auto grid max-w-6xl gap-4 md:grid-cols-3">{duos.map((duo, index) => { const broken = duo.some((name) => players.find((p) => p.name === name)?.status === "eliminated"); return <Panel key={duo.join("/")} className={`p-6 ${broken ? "border-red-300/50 bg-red-950/20" : ""}`}><div className="mb-5 flex h-24 items-center justify-center rounded-2xl bg-gradient-to-br from-red-950/60 to-white/5"><Fingerprint className="h-10 w-10 text-red-300" /></div><p className="text-xs font-black uppercase tracking-[0.3em] text-zinc-500">Duo {index + 1}</p><h2 className="mt-2 text-2xl font-black">{duo.join(" / ")}</h2><p className="mt-3 text-sm text-zinc-400">{broken ? "Lien brisé. Un joueur reste seul." : "Lien stable. Niveau de confiance inconnu."}</p></Panel> })}</div><div className="mx-auto mt-6 flex max-w-6xl justify-center"><button onClick={() => setScreen("games")} className="rounded-2xl bg-red-200 px-8 py-4 font-black text-zinc-950">Choisir une épreuve</button></div></div>
 }
 

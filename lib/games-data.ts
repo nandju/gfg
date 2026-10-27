@@ -2,9 +2,12 @@ export interface Game {
   id: string
   title: string
   description: string
-  coverImage: string
-  backgroundMobile: string
-  backgroundDesktop: string
+  tagline: string
+  genre: string
+  mode: string
+  players: string
+  image: string
+  backgrounds: string[]
   link: string
   available: boolean
 }
@@ -13,10 +16,13 @@ export const games: Game[] = [
   {
     id: "threedays",
     title: "THREE DAYS",
-    description: "Echappez à la règle des 3 jours après la réalisation de votre souhait",
-    coverImage: "/threedays/cover.png",
-    backgroundMobile: "/threedays/mobile7.png",
-    backgroundDesktop: "/threedays/desktop.png",
+    description: "Faites un souhait. Survivez trois manches. Ne laissez jamais personne deviner la condition qui peut vous sauver.",
+    tagline: "Le souhait est accordé",
+    genre: "Déduction sociale",
+    mode: "Joueurs dans la même pièce",
+    players: "3 à 12 joueurs",
+    image: "/threedays/cover.png",
+    backgrounds: ["/threedays/desktop.png", "/threedays/mobile7.png"],
     link: "/games/threedays",
     available: true
   },
@@ -24,19 +30,25 @@ export const games: Game[] = [
     id: "moonsters",
     title: "Moonsters",
     description: "Devenez un moonster ou un chasseur et defendez votre camp à bout de ruse et de stratégie pour remporter la victoire",
-    coverImage: "/moonsters/cover.jpeg",
-    backgroundMobile: "/moonsters/mobile1.png",
-    backgroundDesktop: "/moonsters/desktop.png",
+    tagline: "La nuit vous appartient",
+    genre: "Stratégie",
+    mode: "Multijoueur",
+    players: "Bientôt",
+    image: "/moonsters/cover.jpeg",
+    backgrounds: ["/moonsters/desktop.png", "/moonsters/mobile1.png"],
     link: "/games/moonsters",
     available: false
   },
   {
     id: "cagewild",
     title: "Cage Wild",
-    description: "Utilisez votre partenaire pour survivre dans cet univers impitoyable où la coopération est la clé de la survie. Un jeu d'action et de stratégie intense pour les duos audacieux.",
-    coverImage: "/cagewild/cover.png",
-    backgroundMobile: "/cagewild/mobile4.png",
-    backgroundDesktop: "/cagewild/desktop.png",
+    description: "Une expérience psychologique multijoueur en duo. Les téléphones portent des secrets. Les visages portent des mensonges.",
+    tagline: "Personne n'abandonne",
+    genre: "Déduction · Trahison",
+    mode: "Duos dans la même pièce",
+    players: "4 à 12 joueurs",
+    image: "/cagewild/cover.png",
+    backgrounds: ["/cagewild/desktop.png", "/cagewild/mobile4.png"],
     link: "/games/cagewild",
     available: true
   },
@@ -44,19 +56,25 @@ export const games: Game[] = [
     id: "deadlypsycho",
     title: "Deadly Psycho",
     description: "Nagez dans le monde impitoyable des assassins où seul un esprit totalement fou peut survivre",
-    coverImage: "/deadlypsycho/cover.png",
-    backgroundMobile: "/deadlypsycho/mobile5.png",
-    backgroundDesktop: "/deadlypsycho/desktop.png",
+    tagline: "La folie est une arme",
+    genre: "Action",
+    mode: "Multijoueur",
+    players: "Bientôt",
+    image: "/deadlypsycho/cover.png",
+    backgrounds: ["/deadlypsycho/desktop.png", "/deadlypsycho/mobile5.png"],
     link: "/games/deadlypsycho",
     available: false
   },
   {
     id: "goal",
     title: "GOAL!!!",
-    description: "Formez votre équipe et battez vos adversaires, seul les plus aguéris pourront soulever le trophée de la victoire",
-    coverImage: "/goal!!!/cover.png",
-    backgroundMobile: "/goal!!!/mobile3.png",
-    backgroundDesktop: "/goal!!!/desktop.png",
+    description: "Des mini-jeux de football rapides pour des joueurs dans la même pièce. Quiz IA, mimes et mots-clés, scores cachés, révélations.",
+    tagline: "Soirée football locale",
+    genre: "Quiz · Party game",
+    mode: "Équipes dans la même pièce",
+    players: "2 à 12 joueurs",
+    image: "/goal!!!/cover.png",
+    backgrounds: ["/goal!!!/desktop.png", "/goal!!!/mobile3.png"],
     link: "/games/goal",
     available: true
   },
@@ -64,9 +82,12 @@ export const games: Game[] = [
     id: "jobwars",
     title: "Job Wars",
     description: "Avec le metier de votre choix, affrontez les autres joueurs dans des batailles épiques pour prouver que votre profession est la meilleure",
-    coverImage: "/jobwars/cover.png",
-    backgroundMobile: "/jobwars/mobile2.png",
-    backgroundDesktop: "/jobwars/desktop.png",
+    tagline: "Que le meilleur métier gagne",
+    genre: "Bataille",
+    mode: "Multijoueur",
+    players: "Bientôt",
+    image: "/jobwars/cover.png",
+    backgrounds: ["/jobwars/desktop.png", "/jobwars/mobile2.png"],
     link: "/games/jobwars",
     available: false
   },
@@ -74,9 +95,12 @@ export const games: Game[] = [
     id: "adassa",
     title: "ADASSA",
     description: "Découvrez le mystère d'ADASSA, un jeu qui défie les attentes et révèle une expérience de jeu unique que personne n'aurait pu anticiper. Plongez dans un univers où les apparences sont trompeuses et où chaque décision compte.",
-    coverImage: "/adassa/cover.png",
-    backgroundMobile: "/adassa/mobile6.png",
-    backgroundDesktop: "/adassa/desktop.png",
+    tagline: "Les apparences trompent",
+    genre: "Mystère",
+    mode: "Multijoueur",
+    players: "Bientôt",
+    image: "/adassa/cover.png",
+    backgrounds: ["/adassa/desktop.png", "/adassa/mobile6.png"],
     link: "/games/adassa",
     available: false
   },
@@ -84,9 +108,12 @@ export const games: Game[] = [
     id: "bus",
     title: "BUS, le survivant de l'accident",
     description: "Une fois que vous prenez ce bus, il n'y a pas de retour en arrière. Plongez dans une aventure palpitante où chaque arrêt vous rapproche soit de la sécurité, soit du danger. Serez-vous capable de survivre à ce voyage imprévisible ?",
-    coverImage: "/bus/cover.png",
-    backgroundMobile: "/bus/mobile8.png",
-    backgroundDesktop: "/bus/desktop.png",
+    tagline: "Pas de retour en arrière",
+    genre: "Aventure",
+    mode: "Multijoueur",
+    players: "Bientôt",
+    image: "/bus/cover.png",
+    backgrounds: ["/bus/desktop.png", "/bus/mobile8.png"],
     link: "/games/bus",
     available: false
   }

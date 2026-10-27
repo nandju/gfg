@@ -49,23 +49,40 @@ export async function createRoom(client: SupabaseClient, input: CreateRoomInput)
 }
 
 export async function joinRoom(client: SupabaseClient, input: JoinRoomInput): Promise<{ room: GameRoomRow; player: RoomPlayerRow }> {
-  const { data: room, error } = await client
-    .from("game_rooms")
-    .select("*")
-    .eq("code", input.code.trim().toUpperCase())
-    .maybeSingle()
-  if (error) throw error
-  if (!room) throw new Error("Room introuvable")
-  if ((room as GameRoomRow).is_locked) throw new Error("Room verrouillée")
+  const room = await fetchRoomByCode(client, input.code)
+  if (!room) throw new Error("Partie introuvable. Vérifiez le code.")
+  if (room.is_locked) throw new Error("Cette partie est verrouillée par l'hôte.")
+  if (room.status === "ended") throw new Error("Cette partie est terminée.")
+
+  const players = await fetchRoomPlayers(client, room.id)
+  const alreadyInside = players.some((p) => p.player_id === input.player_id)
+  if (!alreadyInside) {
+    const connected = players.filter((p) => p.connected)
+    if (connected.length >= room.max_players) throw new Error("Cette partie est complète.")
+    const nameTaken = players.some(
+      (p) => p.connected && p.player_id !== input.player_id && p.player_name.toLowerCase() === input.player_name.trim().toLowerCase()
+    )
+    if (nameTaken) throw new Error("Ce pseudonyme est déjà utilisé dans cette partie.")
+  }
 
   const player = await upsertPlayer(client, {
-    room_id: (room as GameRoomRow).id,
+    room_id: room.id,
     player_id: input.player_id,
     player_name: input.player_name,
     team: input.team,
-    role: "guest"
+    role: alreadyInside ? undefined : "guest"
   })
-  return { room: room as GameRoomRow, player }
+  return { room, player }
+}
+
+export async function fetchRoomByCode(client: SupabaseClient, code: string): Promise<GameRoomRow | null> {
+  const { data, error } = await client
+    .from("game_rooms")
+    .select("*")
+    .eq("code", code.trim().toUpperCase())
+    .maybeSingle()
+  if (error) throw error
+  return (data as GameRoomRow) ?? null
 }
 
 export async function leaveRoom(client: SupabaseClient, roomId: string, playerId: string): Promise<void> {
@@ -77,19 +94,18 @@ export async function leaveRoom(client: SupabaseClient, roomId: string, playerId
 }
 
 export async function upsertPlayer(client: SupabaseClient, input: { room_id: string; player_id: string; player_name: string; team?: string; role?: string }): Promise<RoomPlayerRow> {
+  const payload: Record<string, unknown> = {
+    room_id: input.room_id,
+    player_id: input.player_id,
+    player_name: input.player_name,
+    team: input.team ?? null,
+    connected: true
+  }
+  if (input.role !== undefined) payload.role = input.role
+
   const { data, error } = await client
     .from("room_players")
-    .upsert(
-      {
-        room_id: input.room_id,
-        player_id: input.player_id,
-        player_name: input.player_name,
-        team: input.team ?? null,
-        role: input.role ?? "guest",
-        connected: true
-      },
-      { onConflict: "room_id,player_id" }
-    )
+    .upsert(payload, { onConflict: "room_id,player_id" })
     .select("*")
     .single()
   if (error) throw error
